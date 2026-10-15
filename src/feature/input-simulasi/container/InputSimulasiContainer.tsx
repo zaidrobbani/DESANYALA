@@ -49,7 +49,7 @@ const InputSimulasiContainer = () => {
       />
 
       <div className="flex items-start gap-6">
-        <aside className="sticky top-[88px] hidden w-[260px] shrink-0 flex-col gap-4 lg:flex">
+        <aside className="sticky top-22 hidden w-65 shrink-0 flex-col gap-4 lg:flex">
           <StepperNav steps={steps} onStepClick={scrollToSection} />
           <ValidationPanel state={validationState} />
         </aside>

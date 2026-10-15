@@ -9,7 +9,7 @@ const MainLayout = ({ children }: MainLayoutProps) => {
   return (
     <div className="flex min-h-full flex-1 flex-col bg-canvas">
       <TopNav />
-      <main className="mx-auto flex w-full max-w-[1440px] flex-1 flex-col gap-5 px-4 pt-4 pb-12 sm:px-6 sm:pt-6">
+      <main className="mx-auto flex w-full max-w-360 flex-1 flex-col gap-5 px-4 pt-4 pb-12 sm:px-6 sm:pt-6">
         {children}
       </main>
     </div>

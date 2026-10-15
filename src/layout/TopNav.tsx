@@ -43,7 +43,7 @@ const TopNav = () => {
 
       <Button
         asChild
-        className="h-[38px] rounded-md px-4 text-body-strong hover:bg-brand-hover"
+        className="h-9.5 rounded-md px-4 text-body-strong hover:bg-brand-hover"
       >
         <Link href={ROUTES.simulasi}>Mulai simulasi</Link>
       </Button>
