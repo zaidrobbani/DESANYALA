@@ -164,7 +164,7 @@ const resolveFailure = (request: SimulationRequest) => {
   ) {
     return {
       scenario: "baseline" as const,
-      reason: `Beban puncak ${formatNumber(peak)} kW melebihi kapasitas diesel ${formatNumber(dieselCapacity)} kW, sementara batas beban tak terlayani 0 %.`,
+      reason: `Beban puncak ${formatNumber(peak, 2, 2)} kW melebihi kapasitas diesel ${formatNumber(dieselCapacity)} kW, sementara batas beban tak terlayani 0 %.`,
     };
   }
   return null;
