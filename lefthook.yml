@@ -1,0 +1,33 @@
+# Git hooks DesaNyala FE
+#
+# Alur (semua di hook commit-msg supaya pesan commit ikut divalidasi di awal):
+#
+#   ┌─ prettier (biome format --check) ─┐
+#   │                                   ├─▶ lint (biome lint) ─▶ build (next build)
+#   └─ commitlint ──────────────────────┘
+#
+# - prettier & commitlint jalan paralel.
+# - Jika keduanya lolos, lanjut piped ke lint lalu build.
+# - Format di sini mode check (tidak menulis file). Jalankan `bun run format`
+#   bila gagal, lalu `git add` ulang.
+
+commit-msg:
+  piped: true
+  jobs:
+    - name: format-and-message
+      group:
+        parallel: true
+        jobs:
+          - name: prettier
+            glob: "*.{js,jsx,ts,tsx,json,jsonc,css}"
+            run: bunx biome format --no-errors-on-unmatched --files-ignore-unknown=true {staged_files}
+
+          - name: commitlint
+            run: bunx commitlint --edit {1}
+
+    - name: lint
+      glob: "*.{js,jsx,ts,tsx}"
+      run: bunx biome lint --no-errors-on-unmatched --files-ignore-unknown=true {staged_files}
+
+    - name: build
+      run: bun run build
