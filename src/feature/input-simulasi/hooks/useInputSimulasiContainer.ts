@@ -85,8 +85,12 @@ export const useInputSimulasiContainer = () => {
     mode: "onTouched",
   });
   const { control, register, handleSubmit, setValue, reset } = form;
-  const { errors, dirtyFields } = useFormState({ control });
+  const { errors } = useFormState({ control });
 
+  // Semua nilai form. Dipakai untuk badge sumber: objek baru setiap ada
+  // perubahan, jadi aman dengan memoisasi React Compiler (berbeda dengan
+  // `dirtyFields` RHF yang dimutasi di tempat).
+  const watchedValues = useWatch({ control });
   const kebutuhan = useWatch({ control, name: "kebutuhan" });
   const [latitude, longitude] = useWatch({
     control,
@@ -189,11 +193,24 @@ export const useInputSimulasiContainer = () => {
     };
   }
 
-  /* --- Badge sumber: berubah jadi "Input pengguna" saat nilai diubah -- */
+  /* --- Badge sumber: "Input pengguna" bila nilai beda dari nilai bawaan -- */
+  const presetIrradiance = (presetId: string | undefined) => {
+    const preset = presets.find((item) => item.id === presetId);
+    return preset
+      ? formatNumber(preset.avg_irradiance_kwh_m2_day)
+      : SIMULATION_FORM_DEFAULTS.parameter.pv_radiasi;
+  };
+
+  const autoValueFor = (path: string): unknown =>
+    path === "parameter.pv_radiasi"
+      ? presetIrradiance(kebutuhan.preset_id)
+      : get(SIMULATION_FORM_DEFAULTS, path);
+
   const sourceFor = (
     path: `${SimulationSectionKey}.${string}`,
     meta: NumberFieldMeta,
-  ): FieldSource => (get(dirtyFields, path) ? SOURCE.user : meta.source);
+  ): FieldSource =>
+    get(watchedValues, path) !== autoValueFor(path) ? SOURCE.user : meta.source;
 
   const diesel = parseDieselCapacity(dieselKapasitas);
   const dieselHelper = diesel
@@ -236,17 +253,19 @@ export const useInputSimulasiContainer = () => {
   };
 
   const handlePresetChange = (presetId: string) => {
+    // Radiasi ikut preset selama pengguna belum mengubahnya sendiri.
+    const followsPreset =
+      form.getValues("parameter.pv_radiasi") ===
+      presetIrradiance(form.getValues("kebutuhan.preset_id"));
+
     setValue("kebutuhan.preset_id", presetId, {
       shouldDirty: true,
       shouldValidate: true,
     });
-    const preset = presets.find((item) => item.id === presetId);
-    if (preset && !get(dirtyFields, "parameter.pv_radiasi")) {
-      setValue(
-        "parameter.pv_radiasi",
-        formatNumber(preset.avg_irradiance_kwh_m2_day),
-        { shouldValidate: true },
-      );
+    if (followsPreset) {
+      setValue("parameter.pv_radiasi", presetIrradiance(presetId), {
+        shouldValidate: true,
+      });
     }
   };
 
