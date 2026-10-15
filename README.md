@@ -1,36 +1,122 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# DesaNyala FE
 
-## Getting Started
+Frontend DesaNyala: simulasi dan optimasi sistem energi desa, membandingkan **diesel saja (baseline)** dengan **diesel + panel surya + baterai (hybrid)** pada beban yang sama.
 
-First, run the development server:
+Desain: [Figma DESANYALA](https://www.figma.com/design/fSuDUVYlm7vOzb3jd3AdWP/DESANYALA?node-id=38-748)
+
+## Scope saat ini
+
+| Halaman | Route | Frame Figma | Status |
+| --- | --- | --- | --- |
+| Input simulasi (contoh & input manual) | `/simulasi` | 01, 01b | Dalam pengerjaan |
+| Proses solver (berjalan & gagal) | `/simulasi/proses?id=` | 03, 03b | Belum |
+| Hasil simulasi | `/simulasi/hasil?id=` | 02, 02b–d, 04 | Di luar scope |
+
+## Tech stack
+
+- **Next.js 16** (App Router, React 19, React Compiler) + **TypeScript**
+- **Bun** sebagai package manager & runner
+- **Tailwind CSS v4** + **shadcn/ui** (style `radix-nova`, base Radix, semua komponen terpasang di `src/components/ui`)
+- **Biome** untuk lint & format (menggantikan ESLint/Prettier)
+- **Axios** + **TanStack Query** untuk data fetching
+- **Zod** + **react-hook-form** untuk validasi form
+- **@tabler/icons-react** (ikon di Figma memakai Tabler)
+- **Lefthook** + **commitlint** untuk git hooks
+
+## Memulai
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+bun install          # otomatis menjalankan `lefthook install` (script prepare)
+cp .env.example .env.local
+bun run dev          # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Environment
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Variabel | Keterangan |
+| --- | --- |
+| `NEXT_PUBLIC_BASE_API_URL` | Base URL backend. Kosong = mock API otomatis aktif. |
+| `NEXT_PUBLIC_USE_MOCK_API` | `true` untuk memaksa mock walau base URL terisi. |
+| `NEXT_PUBLIC_MOCK_SOLVER_RESULT` | `auto` / `success` / `fail`. `auto` membuat baseline *infeasible* bila kapasitas diesel < beban puncak dan batas beban tak terlayani = 0. |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Scripts
 
-## Learn More
+| Script | Fungsi |
+| --- | --- |
+| `bun run dev` | Dev server |
+| `bun run build` | Production build |
+| `bun run start` | Jalankan hasil build |
+| `bun run lint` | `biome lint` |
+| `bun run format` | `biome format --write` |
+| `bun run check` | `biome check --write` (lint + format + organize imports) |
+| `bun run typecheck` | `tsc --noEmit` |
 
-To learn more about Next.js, take a look at the following resources:
+## Struktur folder (feature-based, mengikuti simaba-2026-internal)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```
+src/
+├── app/                    # Routing Next.js saja, page hanya merender container
+├── feature/<nama>/         # Satu folder per halaman/fitur
+│   ├── container/          # Komponen utama halaman (merakit component/)
+│   ├── component/          # Komponen UI khusus fitur
+│   ├── hooks/              # use<Nama>Container: state, query, handler
+│   ├── util/               # Helper khusus fitur
+│   └── data.ts             # Konstanta, default value, konfigurasi field
+├── repository/<domain>/    # Layer API
+│   ├── dto.ts              # Tipe request/response
+│   ├── action.ts           # Fungsi axios (+ fallback mock)
+│   ├── query.ts            # Hook TanStack Query
+│   └── mock.ts             # Mock API sementara backend belum siap
+├── schemas/<domain>/       # Zod schema
+├── shared/
+│   ├── component/          # Komponen reusable lintas fitur (PageHero, NumberField, ...)
+│   ├── constant/           # Route, nav
+│   └── util/               # Format angka id-ID, skala profil beban
+├── layout/                 # TopNav, MainLayout, QueryProvider
+├── lib/                    # axios, env, try-catch, utils
+├── components/ui/          # shadcn (vendor, tidak di-lint Biome)
+└── hooks/                  # Hook bawaan shadcn
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Design system
 
-## Deploy on Vercel
+Semua token ada di `src/app/globals.css`, diambil dari variable Figma yang terpasang di screen:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- **Token mentah** memakai nama yang sama dengan Figma: `--bg-canvas`, `--brand-primary`, `--energy-pv`, `--status-warning`, dan seterusnya.
+- **Token shadcn** (`--primary`, `--border`, `--chart-1`, dan seterusnya) dipetakan ke token DesaNyala.
+- **Utility Tailwind**:
+  - warna: `bg-canvas`, `bg-surface`, `bg-subtle`, `bg-track`, `text-fg-primary|secondary|tertiary|inverse`, `text-brand`, `border-line`, `border-line-strong`, `text-energy-*`, `text-success|warning|danger`, `text-source-paper`
+  - tipografi (Figma text styles): `text-h1`, `text-h2`, `text-h3`, `text-body`, `text-body-strong`, `text-small`, `text-label`, `text-label-meta`, `text-kpi`, `text-value`, `text-num-sm`, `text-code` (pakai bersama `font-mono`)
+  - radius: `rounded-sm` 4 · `rounded-md` 6 · `rounded-lg` 8 (kartu) · `rounded-xl` 12 (hero)
+- Font: Plus Jakarta Sans (semua teks), IBM Plex Mono (log solver & nama kolom data).
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Aturan desain MVP (dari Figma Foundations): panel putih tanpa border/bayangan; kontrol cukup pakai garis tepi; status & sumber data ditampilkan sebagai ikon + teks berwarna (tanpa pill); satuan wajib ditulis.
+
+Catatan: halaman Foundations di Figma masih v0.2 dan beberapa hex-nya berbeda dari variable di screen. Nilai dari screen dipakai sebagai acuan. `status/danger`, `energy/unserved`, dan `energy/battery-charge` diambil dari Foundations karena tidak muncul di screen.
+
+## Git hooks (Lefthook)
+
+Semua berjalan di hook `commit-msg`:
+
+```
+┌─ prettier (biome format, mode check) ─┐
+│                                       ├─▶ lint (biome lint) ─▶ build
+└─ commitlint ──────────────────────────┘
+```
+
+`prettier` dan `commitlint` berjalan paralel. Jika keduanya lolos, pipeline lanjut ke `lint` lalu `build`. Jika format gagal, jalankan `bun run format`, lalu `git add` ulang.
+
+Format commit: [Conventional Commits](https://www.conventionalcommits.org/) dengan subject huruf kecil, contoh `feat: slicing halaman input simulasi`. Type yang diizinkan: `feat`, `fix`, `chore`, `docs`, `style`, `refactor`, `test`, `perf`, `ci`, `build`, `revert`.
+
+## Kontrak API (usulan FE)
+
+Lihat `src/repository/simulation/dto.ts`.
+
+```
+GET  /load-profiles/presets
+POST /simulations                (multipart bila ada file profil beban)
+GET  /simulations/:id/progress   (di-poll tiap 1 detik)
+POST /simulations/:id/cancel
+```
+
+Respons dibungkus `{ payload: ... }`. Data preset **El Espino** di mock masih **placeholder**, bukan data asli Balderrama dkk. (2019).

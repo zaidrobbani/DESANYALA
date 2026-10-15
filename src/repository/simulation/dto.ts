@@ -25,7 +25,10 @@ export type LoadProfilePreset = {
   id: string;
   name: string;
   description: string;
+  /** Asal profil (badge di kartu pilihan). */
   source: { label: string; tone: DataSourceTone };
+  /** Asal angka ringkasan energi/puncak/radiasi (badge di bawah statistik). */
+  stats_source: { label: string; tone: DataSourceTone };
   daily_energy_kwh: number;
   peak_load_kw: number;
   avg_irradiance_kwh_m2_day: number;

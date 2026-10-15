@@ -45,6 +45,7 @@ export const MOCK_LOAD_PROFILE_PRESETS: LoadProfilePreset[] = [
     description:
       "Direkonstruksi dari angka paper. Diulang 365 hari, bukan pengukuran lapangan.",
     source: { label: "Rekonstruksi dari paper", tone: "assumption" },
+    stats_source: { label: "Paper 2024", tone: "paper" },
     daily_energy_kwh: 728.83,
     peak_load_kw: 77.9,
     avg_irradiance_kwh_m2_day: 5.73,
@@ -63,6 +64,7 @@ export const MOCK_LOAD_PROFILE_PRESETS: LoadProfilePreset[] = [
     name: "El Espino, Bolivia",
     description: "Contoh repo Energy_2019 untuk uji reproduksi model.",
     source: { label: "Balderrama dkk. 2019", tone: "paper" },
+    stats_source: { label: "Placeholder mock", tone: "assumption" },
     daily_energy_kwh: 300,
     peak_load_kw: 28,
     avg_irradiance_kwh_m2_day: 5.5,
