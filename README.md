@@ -8,9 +8,17 @@ Desain: [Figma DESANYALA](https://www.figma.com/design/fSuDUVYlm7vOzb3jd3AdWP/DE
 
 | Halaman | Route | Frame Figma | Status |
 | --- | --- | --- | --- |
-| Input simulasi (contoh & input manual) | `/simulasi` | 01, 01b | Dalam pengerjaan |
-| Proses solver (berjalan & gagal) | `/simulasi/proses?id=` | 03, 03b | Belum |
-| Hasil simulasi | `/simulasi/hasil?id=` | 02, 02b–d, 04 | Di luar scope |
+| Input simulasi (contoh & input manual) | `/simulasi` | 01, 01b | Selesai |
+| Proses solver (berjalan, selesai, gagal) | `/simulasi/proses?id=` | 03, 03b | Selesai |
+| Hasil simulasi | `/simulasi/hasil?id=` | 02, 02b–d, 04 | Placeholder (di luar scope) |
+
+`/` sementara di-redirect ke `/simulasi` karena halaman Beranda belum di-slice.
+
+### Mencoba alur demo (mock API)
+
+1. Buka `/simulasi`, lalu klik **Jalankan optimasi** dengan nilai default. Kedua skenario selesai *optimal* dalam ±14 detik, lalu halaman pindah otomatis ke Hasil.
+2. **Skenario gagal (frame 03b):** ubah *Kapasitas terpasang* diesel menjadi `2 × 30` (60 kW < beban puncak 77,90 kW) lalu jalankan. Baseline akan *infeasible* dan Hybrid dilewati. Cara lain: set `NEXT_PUBLIC_MOCK_SOLVER_RESULT=fail`.
+3. Tombol **Batalkan** menghentikan solver yang sedang berjalan.
 
 ## Tech stack
 
@@ -90,6 +98,12 @@ Semua token ada di `src/app/globals.css`, diambil dari variable Figma yang terpa
   - radius: `rounded-sm` 4 · `rounded-md` 6 · `rounded-lg` 8 (kartu) · `rounded-xl` 12 (hero)
 - Font: Plus Jakarta Sans (semua teks), IBM Plex Mono (log solver & nama kolom data).
 
+> **Penting: `cn()`.** `src/lib/utils.ts` membuat `cn` lewat `createCn` yang mengenal skala tipografi custom (`text-body-strong`, `text-label`, dll.). Tanpa konfigurasi ini, `cn("text-body-strong", "text-brand")` akan membuang salah satu kelas karena keduanya dianggap utility warna. CLI shadcn versi terbaru menulis `import { cn } from "cn"` di komponen baru, jadi **setiap selesai `bunx shadcn add`, ganti import itu menjadi `@/lib/utils`**:
+>
+> ```bash
+> grep -rlE 'from "cn"' src | xargs sed -i 's#from "cn"#from "@/lib/utils"#'
+> ```
+
 Aturan desain MVP (dari Figma Foundations): panel putih tanpa border/bayangan; kontrol cukup pakai garis tepi; status & sumber data ditampilkan sebagai ikon + teks berwarna (tanpa pill); satuan wajib ditulis.
 
 Catatan: halaman Foundations di Figma masih v0.2 dan beberapa hex-nya berbeda dari variable di screen. Nilai dari screen dipakai sebagai acuan. `status/danger`, `energy/unserved`, dan `energy/battery-charge` diambil dari Foundations karena tidak muncul di screen.
@@ -119,4 +133,4 @@ GET  /simulations/:id/progress   (di-poll tiap 1 detik)
 POST /simulations/:id/cancel
 ```
 
-Respons dibungkus `{ payload: ... }`. Data preset **El Espino** di mock masih **placeholder**, bukan data asli Balderrama dkk. (2019).
+Respons dibungkus `{ payload: ... }`. Selama `NEXT_PUBLIC_BASE_API_URL` kosong, semua call dijawab oleh `src/repository/simulation/mock.ts`. State run disimpan di `sessionStorage` sehingga halaman proses tetap jalan setelah refresh. Data preset **El Espino** di mock masih **placeholder**, bukan data asli Balderrama dkk. (2019).
