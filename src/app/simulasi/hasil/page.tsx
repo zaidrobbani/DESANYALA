@@ -21,7 +21,7 @@ export default function HasilSimulasiPage() {
       />
       <section className="flex flex-col items-start gap-3 rounded-lg bg-surface p-6">
         <p className="text-body text-fg-secondary">
-          Optimasi sudah selesai. Tampilan perbandingan Baseline vs Hybrid akan
+          Optimasi sudah selesai. Tampilan perbandingan antarskenario akan
           dikerjakan pada tahap berikutnya.
         </p>
         <Button

@@ -1,12 +1,11 @@
 import { IconCheck } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
-import type { SimulationSectionKey } from "@/schemas/simulation/simulation.schema";
-import type { SimulationStep } from "../data";
+import type { SimulationStep, SimulationStepKey } from "../data";
 import type { StepState } from "../hooks/useInputSimulasiContainer";
 
 interface StepperNavProps {
   steps: (SimulationStep & { state: StepState; hasError: boolean })[];
-  onStepClick: (key: SimulationSectionKey) => void;
+  onStepClick: (key: SimulationStepKey) => void;
 }
 
 const StepperNav = ({ steps, onStepClick }: StepperNavProps) => {
@@ -24,7 +23,7 @@ const StepperNav = ({ steps, onStepClick }: StepperNavProps) => {
                 type="button"
                 onClick={() => onStepClick(step.key)}
                 aria-current={step.state === "active" ? "step" : undefined}
-                className="group flex h-16 w-full gap-3 rounded-md text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                className="group flex h-14 w-full gap-3 rounded-md text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
               >
                 <span className="flex h-full flex-col items-center gap-1">
                   <span
@@ -58,7 +57,7 @@ const StepperNav = ({ steps, onStepClick }: StepperNavProps) => {
                     />
                   )}
                 </span>
-                <span className="flex min-w-0 flex-1 flex-col gap-0.5 pt-1 pb-3">
+                <span className="flex min-w-0 flex-1 flex-col gap-0.5 pt-1 pb-2">
                   <span
                     className={cn(
                       "text-body-strong group-hover:text-brand",

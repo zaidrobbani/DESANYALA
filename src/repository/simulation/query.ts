@@ -2,11 +2,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CancelSimulation,
   CreateSimulation,
-  GetLoadProfilePresets,
   GetSimulationProgress,
 } from "./action";
 import type {
-  LoadProfilePresetListResponse,
   SimulationCreateResponse,
   SimulationProgressResponse,
   SimulationRequest,
@@ -15,28 +13,14 @@ import type {
 
 export const simulationKeys = {
   all: ["simulations"] as const,
-  presets: () => ["load-profile-presets"] as const,
   progress: (id: string) => ["simulations", id, "progress"] as const,
 };
 
 const POLLING_STATUSES: SimulationStatus[] = ["queued", "running"];
 
-export const useGetLoadProfilePresets = () => {
-  return useQuery<LoadProfilePresetListResponse, Error>({
-    queryKey: simulationKeys.presets(),
-    queryFn: GetLoadProfilePresets,
-    staleTime: Number.POSITIVE_INFINITY,
-    gcTime: 1000 * 60 * 30,
-  });
-};
-
 export const useCreateSimulation = () => {
-  return useMutation<
-    SimulationCreateResponse,
-    Error,
-    { payload: SimulationRequest; file: File | null }
-  >({
-    mutationFn: ({ payload, file }) => CreateSimulation(payload, file),
+  return useMutation<SimulationCreateResponse, Error, SimulationRequest>({
+    mutationFn: (payload) => CreateSimulation(payload),
   });
 };
 

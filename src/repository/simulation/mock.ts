@@ -5,10 +5,8 @@
  */
 import { MOCK_SOLVER_RESULT } from "@/lib/env";
 import { ApiError } from "@/lib/try-catch";
-import { scaleLoadProfile } from "@/shared/util/load-profile";
 import { formatNumber } from "@/shared/util/number";
 import type {
-  LoadProfilePreset,
   ScenarioKey,
   ScenarioProgress,
   SimulationProgress,
@@ -18,73 +16,6 @@ import type {
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/*
- * Bentuk profil beban Yensawai diambil dari vektor grafik di Figma
- * (node 40:209), lalu diskalakan ke angka paper Subekti dkk. (2024):
- * 728,83 kWh/hari dan beban puncak 77,90 kW.
- */
-const YENSAWAI_SHAPE = [
-  14.21, 12.24, 11.25, 11.25, 12.24, 16.24, 26.21, 42.21, 56.24, 60.24, 50.21,
-  38.21, 26.21, 20.24, 18.21, 18.21, 18.21, 23.25, 42.21, 78.12, 60.24, 38.21,
-  24.24, 16.24,
-];
-
-/*
- * PLACEHOLDER — bukan data asli Balderrama dkk. (2019).
- * Ganti dengan profil dari repo Energy_2019 saat backend tersedia.
- */
-const EL_ESPINO_PLACEHOLDER_SHAPE = [
-  6, 5.5, 5, 5, 5.5, 7, 10, 12, 11, 10, 10, 11, 12, 11, 10, 10, 11, 14, 22, 28,
-  26, 20, 13, 8,
-];
-
-export const MOCK_LOAD_PROFILE_PRESETS: LoadProfilePreset[] = [
-  {
-    id: "yensawai",
-    name: "Yensawai, Raja Ampat",
-    description:
-      "Direkonstruksi dari angka paper. Diulang 365 hari, bukan pengukuran lapangan.",
-    source: { label: "Rekonstruksi dari paper", tone: "assumption" },
-    stats_source: { label: "Paper 2024", tone: "paper" },
-    daily_energy_kwh: 728.83,
-    peak_load_kw: 77.9,
-    avg_irradiance_kwh_m2_day: 5.73,
-    hourly_profile_kw: scaleLoadProfile(YENSAWAI_SHAPE, 728.83, 77.9),
-    validation: {
-      rows: 8760,
-      interval_minutes: 60,
-      unit: "kW",
-      unit_consistent: true,
-      negative_count: 0,
-      interpolated_count: 2,
-    },
-  },
-  {
-    id: "el-espino",
-    name: "El Espino, Bolivia",
-    description: "Contoh repo Energy_2019 untuk uji reproduksi model.",
-    source: { label: "Balderrama dkk. 2019", tone: "paper" },
-    stats_source: { label: "Placeholder mock", tone: "assumption" },
-    daily_energy_kwh: 300,
-    peak_load_kw: 28,
-    avg_irradiance_kwh_m2_day: 5.5,
-    hourly_profile_kw: scaleLoadProfile(EL_ESPINO_PLACEHOLDER_SHAPE, 300, 28),
-    validation: {
-      rows: 8760,
-      interval_minutes: 60,
-      unit: "kW",
-      unit_consistent: true,
-      negative_count: 0,
-      interpolated_count: 0,
-    },
-  },
-];
-
-export const mockGetLoadProfilePresets = async () => {
-  await delay(250);
-  return { payload: MOCK_LOAD_PROFILE_PRESETS };
-};
-
 /* ------------------------------------------------------------------------ */
 /* Run solver                                                               */
 /* ------------------------------------------------------------------------ */
@@ -93,14 +24,16 @@ const STORAGE_PREFIX = "desanyala:mock-simulation:";
 const SOLVER = { name: "HiGHS", version: "1.7", method: "LP", periods: 8760 };
 
 const SCENARIO_LABEL: Record<ScenarioKey, string> = {
-  baseline: "Baseline: diesel saja",
-  hybrid: "Hybrid: diesel + PV + baterai",
+  diesel_only: "Diesel-only (baseline)",
+  pv_diesel: "PV + diesel",
+  pv_diesel_battery: "PV + diesel + baterai",
 };
 
 /** Durasi solve per skenario (detik) di mock. */
 const SCENARIO_DURATION: Record<ScenarioKey, number> = {
-  baseline: 3.1,
-  hybrid: 10.8,
+  diesel_only: 3.1,
+  pv_diesel: 6.4,
+  pv_diesel_battery: 10.8,
 };
 const INFEASIBLE_AFTER_SECONDS = 2.4;
 const GAP_BETWEEN_SCENARIOS = 0.1;
@@ -135,17 +68,18 @@ const writeRun = (run: MockRun) => {
   }
 };
 
-const resolvePeakLoad = (request: SimulationRequest) => {
-  if (request.load.source === "manual") return request.load.peak_load_kw;
-  const presetId = request.load.preset_id;
-  return (
-    MOCK_LOAD_PROFILE_PRESETS.find((preset) => preset.id === presetId)
-      ?.peak_load_kw ?? 0
+/*
+ * Daya terpasang = semua peralatan menyala bersamaan. Ini batas atas beban
+ * puncak, bukan profil per jam (yang masih harus dibentuk backend).
+ */
+const connectedPowerKw = (request: SimulationRequest) =>
+  request.demand.loads.reduce(
+    (sum, load) => sum + (load.quantity * load.power_w) / 1000,
+    0,
   );
-};
 
 const resolveFailure = (request: SimulationRequest) => {
-  const firstScenario = request.scenarios[0] ?? "baseline";
+  const firstScenario = request.optimization.scenarios[0]?.id ?? "diesel_only";
   if (MOCK_SOLVER_RESULT === "success") return null;
   if (MOCK_SOLVER_RESULT === "fail") {
     return {
@@ -155,16 +89,17 @@ const resolveFailure = (request: SimulationRequest) => {
     };
   }
 
-  const dieselCapacity = request.diesel.units * request.diesel.unit_capacity_kw;
-  const peak = resolvePeakLoad(request);
+  const { generators, reliability } = request;
+  const dieselCapacity = generators.unit_count * generators.rated_power_each_kw;
+  const peak = connectedPowerKw(request);
   if (
-    request.scenarios.includes("baseline") &&
-    request.max_unserved_energy_pct === 0 &&
+    request.optimization.scenarios.some(({ id }) => id === "diesel_only") &&
+    reliability.shortage_policy === "forbid" &&
     dieselCapacity < peak
   ) {
     return {
-      scenario: "baseline" as const,
-      reason: `Beban puncak ${formatNumber(peak, 2, 2)} kW melebihi kapasitas diesel ${formatNumber(dieselCapacity)} kW, sementara batas beban tak terlayani 0 %.`,
+      scenario: "diesel_only" as const,
+      reason: `Daya terpasang peralatan ${formatNumber(peak, 2, 2)} kW melebihi kapasitas genset ${formatNumber(dieselCapacity)} kW, sementara kekurangan listrik tidak diizinkan.`,
     };
   }
   return null;
@@ -177,7 +112,7 @@ export const mockCreateSimulation = async (request: SimulationRequest) => {
     id: `sim_${Math.random().toString(36).slice(2, 10)}`,
     started_at: Date.now(),
     cancelled_at: null,
-    scenarios: request.scenarios,
+    scenarios: request.optimization.scenarios.map(({ id }) => id),
     failing_scenario: failure?.scenario ?? null,
     failure_reason: failure?.reason ?? null,
   };

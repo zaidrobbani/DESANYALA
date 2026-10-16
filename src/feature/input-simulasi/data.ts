@@ -2,68 +2,150 @@ import {
   type Icon,
   IconActivity,
   IconAdjustmentsHorizontal,
+  IconBatteryCharging2,
   IconCoins,
+  IconEngine,
   IconMapPin,
+  IconSolarPanel,
 } from "@tabler/icons-react";
-import type {
-  SimulationFormValues,
-  SimulationSectionKey,
+import type { ScenarioKey } from "@/repository/simulation/dto";
+import {
+  type DemandLoadFormValues,
+  LOAD_CATEGORIES,
+  type SimulationFormSection,
+  type SimulationFormValues,
 } from "@/schemas/simulation/simulation.schema";
 import type { FieldSource } from "@/shared/component/NumberField";
 import type { SelectOption } from "@/shared/component/SelectField";
 
+/*
+ * Mengikuti desanyala_input_cards.html + desanyala_variable_names.txt.
+ * `id` di setiap meta field = HTML ID pada referensi (mis. "pvCapex"),
+ * sedangkan nama field form = JSON path (mis. "pv.capex_per_kwp").
+ */
+
 /* ------------------------------------------------------------------------ */
-/* Nilai default form (studi kasus demo Kampung Yensawai, Raja Ampat)       */
+/* Nilai default form (contoh angka awal dari HTML referensi)                */
 /* ------------------------------------------------------------------------ */
 
-export const DEFAULT_PRESET_ID = "yensawai";
+export const NEW_LOAD: DemandLoadFormValues = {
+  category: "Rumah tangga",
+  device: "",
+  quantity: "1",
+  power_w: "",
+  hours_per_day: "4",
+};
 
 export const SIMULATION_FORM_DEFAULTS: SimulationFormValues = {
-  lokasi: {
-    nama_desa: "Kampung Yensawai",
-    provinsi: "Papua Barat Daya",
-    zona_waktu: "WIT",
-    latitude: "",
-    longitude: "",
+  project: {
+    name: "",
+    location: "",
+    households: "150",
+    electrification_status: "unserved",
+    simulation_days: "365",
+    project_lifetime_years: "20",
+    currency: "IDR",
   },
-  kebutuhan: {
-    mode: "contoh",
-    preset_id: DEFAULT_PRESET_ID,
-    energi_harian: "728,83",
-    daya_puncak: "77,90",
-    profil_file: null,
+  demand: {
+    loads: [
+      {
+        category: "Rumah tangga",
+        device: "Lampu LED",
+        quantity: "150",
+        power_w: "10",
+        hours_per_day: "6",
+      },
+      {
+        category: "Fasilitas umum",
+        device: "Lampu sekolah",
+        quantity: "20",
+        power_w: "20",
+        hours_per_day: "6",
+      },
+      {
+        category: "Pompa air",
+        device: "Pompa air",
+        quantity: "1",
+        power_w: "750",
+        hours_per_day: "4",
+      },
+    ],
   },
-  parameter: {
-    diesel_kapasitas: "2 × 80",
-    diesel_min_load: "30",
-    diesel_konsumsi: "0,28",
-    pv_maks: "150",
-    pv_radiasi: "5,73",
-    pv_umur: "25",
-    baterai_maks: "300",
-    baterai_soc_min: "20",
-    baterai_efisiensi: "90",
+  pv: {
+    enabled: true,
+    resource_location: "",
+    peak_sun_hours_estimate: "4,5",
+    system_performance_factor: "80",
+    capacity_mode: "optimize",
+    fixed_capacity_kwp: "50",
+    capacity_min_kwp: "0",
+    capacity_max_kwp: "200",
+    capex_per_kwp: "15.000.000",
+    opex_annual_per_kwp: "150.000",
+    lifetime_years: "25",
   },
-  biaya: {
-    capex_pv: "14,7",
-    capex_baterai: "5,7",
-    capex_inverter: "4,9",
-    harga_solar: "17.100",
-    umur_proyek: "25",
-    diskonto: "8",
-    kurs: "16.300",
-    skenario_baseline: true,
-    skenario_hybrid: true,
-    batas_unserved: "0",
+  generators: {
+    mode: "existing",
+    unit_count: "2",
+    rated_power_each_kw: "50",
+    min_loading_fraction: "30",
+    max_loading_fraction: "100",
+    fuel_price_per_liter: "10.000",
+    fuel_model: "default",
+    efficiency_fraction: "33",
+    capex_per_kw: "12.500.000",
+    opex_annual_per_unit: "5.000.000",
+    lifetime_years: "10",
+  },
+  battery: {
+    enabled: true,
+    capacity_min_kwh: "0",
+    capacity_max_kwh: "200",
+    power_max_kw: "50",
+    charge_efficiency: "97",
+    discharge_efficiency: "97",
+    soc_min_fraction: "20",
+    soc_max_fraction: "100",
+    soc_initial_fraction: "50",
+    capex_per_kwh: "2.500.000",
+    power_capex_per_kw: "500.000",
+    lifetime_years: "13",
+  },
+  economics: {
+    discount_rate: "8",
+    fuel_price_escalation_annual: "0",
+    additional_project_cost: "0",
+  },
+  reliability: {
+    target_supply_fraction: "99,5",
+    shortage_policy: "forbid",
+    max_unmet_energy_fraction: "0,5",
+    reserve_margin_fraction: "10",
+  },
+  optimization: {
+    objective: "annualized_cost",
+    scenarios: ["diesel_only", "pv_diesel", "pv_diesel_battery"],
   },
 };
 
 /* ------------------------------------------------------------------------ */
-/* Stepper                                                                   */
+/* Stepper (satu langkah = satu card di HTML referensi)                      */
 /* ------------------------------------------------------------------------ */
 
+export type SimulationStepKey =
+  | "card-project"
+  | "card-demand"
+  | "card-pv"
+  | "card-gen"
+  | "card-battery"
+  | "card-economics"
+  | "card-optimization";
+
 export type SimulationStep = {
-  key: SimulationSectionKey;
+  /** Id elemen card (sama dengan HTML referensi). */
+  key: SimulationStepKey;
+  /** Bagian form yang errornya ditandai di langkah ini. */
+  sections: SimulationFormSection[];
   number: number;
   title: string;
   description: string;
@@ -74,269 +156,302 @@ export type SimulationStep = {
 
 export const SIMULATION_STEPS: SimulationStep[] = [
   {
-    key: "lokasi",
+    key: "card-project",
+    sections: ["project"],
     number: 1,
-    title: "Lokasi & kondisi dasar",
-    description: "Nama desa dan koordinat",
-    sectionTitle: "1. Lokasi & kondisi dasar",
+    title: "Proyek & simulasi",
+    description: "Lokasi, elektrifikasi, periode",
+    sectionTitle: "1. Proyek & simulasi",
     sectionDescription:
-      "Lokasi dipakai untuk mengambil profil surya dan menyesuaikan zona waktu.",
+      "Informasi lokasi, kondisi elektrifikasi, dan periode analisis.",
     icon: IconMapPin,
   },
   {
-    key: "kebutuhan",
+    key: "card-demand",
+    sections: ["demand"],
     number: 2,
-    title: "Kebutuhan energi",
-    description: "Profil beban dan daya puncak",
-    sectionTitle: "2. Kebutuhan energi",
+    title: "Kebutuhan listrik",
+    description: "Daftar peralatan desa",
+    sectionTitle: "2. Kebutuhan listrik",
     sectionDescription:
-      "Profil beban per jam yang sama dipakai untuk kedua skenario.",
+      "Susun beban dari peralatan desa. Estimasi energi dihitung dari jumlah unit, daya, dan jam penggunaan.",
     icon: IconActivity,
   },
   {
-    key: "parameter",
+    key: "card-pv",
+    sections: ["pv"],
     number: 3,
-    title: "Parameter sistem",
-    description: "Batas genset, PV, baterai",
-    sectionTitle: "3. Parameter sistem",
-    sectionDescription: "Batas teknis yang tidak boleh dilanggar optimizer.",
-    icon: IconAdjustmentsHorizontal,
+    title: "Panel surya (PV)",
+    description: "Sumber daya & batas kapasitas",
+    sectionTitle: "3. Panel surya (PV)",
+    sectionDescription:
+      "Ketersediaan energi surya dan batas kapasitas panel yang boleh dipilih optimizer.",
+    icon: IconSolarPanel,
   },
   {
-    key: "biaya",
+    key: "card-gen",
+    sections: ["generators"],
     number: 4,
-    title: "Biaya & skenario",
-    description: "Harga, umur proyek, skenario",
-    sectionTitle: "4. Biaya & skenario",
+    title: "Generator diesel",
+    description: "Unit, bahan bakar, biaya",
+    sectionTitle: "4. Generator diesel",
     sectionDescription:
-      "Harga dalam Rupiah. Kurs dipakai untuk mengonversi asumsi berbasis USD.",
+      "Spesifikasi genset yang tersedia atau kapasitas genset yang direncanakan.",
+    icon: IconEngine,
+  },
+  {
+    key: "card-battery",
+    sections: ["battery"],
+    number: 5,
+    title: "Baterai",
+    description: "Opsional, kapasitas & SOC",
+    sectionTitle: "5. Baterai",
+    sectionDescription:
+      "Penyimpanan energi opsional untuk menggeser pemakaian energi antarwaktu.",
+    icon: IconBatteryCharging2,
+  },
+  {
+    key: "card-economics",
+    sections: ["economics"],
+    number: 6,
+    title: "Asumsi ekonomi",
+    description: "Mata uang, diskonto",
+    sectionTitle: "6. Asumsi ekonomi",
+    sectionDescription:
+      "Asumsi finansial untuk membandingkan sistem sepanjang umur proyek.",
     icon: IconCoins,
+  },
+  {
+    key: "card-optimization",
+    sections: ["reliability", "optimization"],
+    number: 7,
+    title: "Keandalan & optimasi",
+    description: "Target layanan, skenario",
+    sectionTitle: "7. Keandalan & optimasi",
+    sectionDescription:
+      "Tingkat layanan minimum dan skenario yang dibandingkan oleh engine.",
+    icon: IconAdjustmentsHorizontal,
   },
 ];
 
 /* ------------------------------------------------------------------------ */
-/* Lokasi                                                                    */
+/* Opsi select                                                               */
 /* ------------------------------------------------------------------------ */
 
-export type TimezoneCode = SimulationFormValues["lokasi"]["zona_waktu"];
-
-export const TIMEZONE_OPTIONS: SelectOption[] = [
-  { label: "WIB (UTC+7)", value: "WIB" },
-  { label: "WITA (UTC+8)", value: "WITA" },
-  { label: "WIT (UTC+9)", value: "WIT" },
+export const ELECTRIFICATION_OPTIONS: SelectOption[] = [
+  { label: "Belum memiliki akses listrik yang memadai", value: "unserved" },
+  { label: "Genset sudah tersedia", value: "diesel_existing" },
+  { label: "Sistem PV dan genset sudah tersedia", value: "hybrid_existing" },
 ];
 
-const PROVINCES_BY_TIMEZONE: Record<TimezoneCode, string[]> = {
-  WIB: [
-    "Aceh",
-    "Sumatera Utara",
-    "Sumatera Barat",
-    "Riau",
-    "Kepulauan Riau",
-    "Jambi",
-    "Sumatera Selatan",
-    "Kepulauan Bangka Belitung",
-    "Bengkulu",
-    "Lampung",
-    "DKI Jakarta",
-    "Jawa Barat",
-    "Banten",
-    "Jawa Tengah",
-    "DI Yogyakarta",
-    "Jawa Timur",
-    "Kalimantan Barat",
-    "Kalimantan Tengah",
-  ],
-  WITA: [
-    "Bali",
-    "Nusa Tenggara Barat",
-    "Nusa Tenggara Timur",
-    "Kalimantan Selatan",
-    "Kalimantan Timur",
-    "Kalimantan Utara",
-    "Sulawesi Utara",
-    "Gorontalo",
-    "Sulawesi Tengah",
-    "Sulawesi Barat",
-    "Sulawesi Selatan",
-    "Sulawesi Tenggara",
-  ],
-  WIT: [
-    "Maluku",
-    "Maluku Utara",
-    "Papua",
-    "Papua Barat",
-    "Papua Barat Daya",
-    "Papua Selatan",
-    "Papua Tengah",
-    "Papua Pegunungan",
-  ],
-};
+export const SIMULATION_DAYS_OPTIONS: SelectOption[] = [
+  { label: "365 hari · tahunan", value: "365" },
+  { label: "30 hari · uji awal", value: "30" },
+  { label: "7 hari · uji cepat", value: "7" },
+];
 
-export const PROVINCE_TIMEZONE: Record<string, TimezoneCode> =
-  Object.fromEntries(
-    (Object.keys(PROVINCES_BY_TIMEZONE) as TimezoneCode[]).flatMap((tz) =>
-      PROVINCES_BY_TIMEZONE[tz].map((province) => [province, tz]),
-    ),
-  );
+export const LOAD_CATEGORY_OPTIONS: SelectOption[] = LOAD_CATEGORIES.map(
+  (category) => ({ label: category, value: category }),
+);
 
-export const PROVINCE_OPTIONS: SelectOption[] = Object.keys(PROVINCE_TIMEZONE)
-  .sort((a, b) => a.localeCompare(b, "id"))
-  .map((province) => ({ label: province, value: province }));
+export const PV_CAPACITY_MODE_OPTIONS: SelectOption[] = [
+  { label: "Dioptimalkan oleh sistem", value: "optimize" },
+  { label: "Kapasitas tetap", value: "fixed" },
+];
+
+export const GENERATOR_MODE_OPTIONS: SelectOption[] = [
+  { label: "Genset sudah tersedia", value: "existing" },
+  { label: "Merencanakan genset baru", value: "new" },
+];
+
+export const FUEL_MODEL_OPTIONS: SelectOption[] = [
+  { label: "Gunakan asumsi efisiensi", value: "default" },
+  { label: "Masukkan efisiensi", value: "efficiency" },
+  { label: "Kurva konsumsi bahan bakar", value: "curve" },
+];
+
+export const CURRENCY_OPTIONS: SelectOption[] = [
+  { label: "Rupiah (IDR)", value: "IDR" },
+  { label: "US Dollar (USD)", value: "USD" },
+];
+
+export const SHORTAGE_POLICY_OPTIONS: SelectOption[] = [
+  { label: "Tidak diizinkan", value: "forbid" },
+  { label: "Diizinkan dalam batas tertentu", value: "bounded" },
+];
+
+export const OBJECTIVE_OPTIONS: SelectOption[] = [
+  { label: "Biaya tahunan sistem minimum", value: "annualized_cost" },
+  { label: "Konsumsi diesel minimum", value: "fuel_consumption" },
+];
+
+export const SCENARIO_OPTIONS: {
+  id: ScenarioKey;
+  htmlId: string;
+  label: string;
+  description: string;
+}[] = [
+  {
+    id: "diesel_only",
+    htmlId: "scenarioDiesel",
+    label: "Diesel-only",
+    description: "Baseline tanpa panel surya dan baterai.",
+  },
+  {
+    id: "pv_diesel",
+    htmlId: "scenarioPv",
+    label: "PV + diesel",
+    description: "Ukur kontribusi panel surya.",
+  },
+  {
+    id: "pv_diesel_battery",
+    htmlId: "scenarioBattery",
+    label: "PV + diesel + baterai",
+    description: "Ukur manfaat penyimpanan energi.",
+  },
+];
 
 /* ------------------------------------------------------------------------ */
 /* Field angka                                                               */
 /* ------------------------------------------------------------------------ */
 
 export const SOURCE = {
-  paper: { tone: "paper", label: "Paper 2024" },
   user: { tone: "user", label: "Input pengguna" },
-  demo: { tone: "assumption", label: "Asumsi demo" },
+  example: { tone: "assumption", label: "Contoh awal" },
 } satisfies Record<string, FieldSource>;
 
 export type NumberFieldMeta = {
+  /** HTML ID di desanyala_input_cards.html. */
+  id: string;
   label: string;
+  /** `{cur}` diganti mata uang proyek (IDR/USD). */
   unit: string;
-  helper: string;
+  helper?: string;
   /** Sumber nilai default. Berubah jadi "Input pengguna" saat nilai diubah. */
   source: FieldSource;
 };
 
-type ParameterKey = keyof SimulationFormValues["parameter"];
-type BiayaNumberKey = Exclude<
-  keyof SimulationFormValues["biaya"],
-  "skenario_baseline" | "skenario_hybrid"
+/** Key bertipe `string` murni (field angka/teks), bukan enum atau boolean. */
+type NumberKeys<T> = {
+  [K in keyof T]: string extends T[K] ? K : never;
+}[keyof T];
+
+type FieldMetaOf<S extends SimulationFormSection, K = never> = Record<
+  Exclude<NumberKeys<SimulationFormValues[S]>, K>,
+  NumberFieldMeta
 >;
-type KebutuhanNumberKey = "energi_harian" | "daya_puncak";
 
-export const KEBUTUHAN_FIELDS: Record<KebutuhanNumberKey, NumberFieldMeta> = {
-  energi_harian: {
-    label: "Total energi harian",
-    unit: "kWh/hari",
-    helper: "Dari catatan operator genset.",
-    source: SOURCE.user,
-  },
-  daya_puncak: {
-    label: "Daya puncak",
-    unit: "kW",
-    helper: "Beban tertinggi dalam sehari.",
-    source: SOURCE.user,
-  },
+const field = (
+  id: string,
+  label: string,
+  unit: string,
+  helper?: string,
+): NumberFieldMeta => ({ id, label, unit, helper, source: SOURCE.example });
+
+export const PROJECT_FIELDS: Pick<
+  FieldMetaOf<"project">,
+  "households" | "project_lifetime_years"
+> = {
+  households: field(
+    "households",
+    "Jumlah rumah tangga",
+    "rumah",
+    "Konteks estimasi kebutuhan, bukan pengganti daftar beban.",
+  ),
+  project_lifetime_years: field("projectLifetime", "Umur proyek", "tahun"),
 };
 
-export const PARAMETER_FIELDS: Record<ParameterKey, NumberFieldMeta> = {
-  diesel_kapasitas: {
-    label: "Kapasitas terpasang",
-    unit: "kW",
-    helper: "Dua unit eksisting.",
-    source: SOURCE.paper,
-  },
-  diesel_min_load: {
-    label: "Minimum load per unit",
-    unit: "% kapasitas",
-    helper: "Cek manual pabrikan.",
-    source: SOURCE.demo,
-  },
-  diesel_konsumsi: {
-    label: "Konsumsi spesifik",
-    unit: "liter/kWh",
-    helper: "Dari kurva konsumsi.",
-    source: SOURCE.demo,
-  },
-  pv_maks: {
-    label: "Kapasitas maksimum",
-    unit: "kWp",
-    helper: "Dibatasi luas lahan.",
-    source: SOURCE.user,
-  },
-  pv_radiasi: {
-    label: "Radiasi rata-rata",
-    unit: "kWh/m²/hari",
-    helper: "Dipakai jika koordinat kosong.",
-    source: SOURCE.paper,
-  },
-  pv_umur: {
-    label: "Umur PV",
-    unit: "tahun",
-    helper: "Umur teknis modul.",
-    source: SOURCE.demo,
-  },
-  baterai_maks: {
-    label: "Kapasitas maksimum",
-    unit: "kWh",
-    helper: "Batas atas pencarian.",
-    source: SOURCE.user,
-  },
-  baterai_soc_min: {
-    label: "SOC minimum",
-    unit: "%",
-    helper: "Batas aman pengosongan.",
-    source: SOURCE.demo,
-  },
-  baterai_efisiensi: {
-    label: "Efisiensi round-trip",
-    unit: "%",
-    helper: "Charge × discharge.",
-    source: SOURCE.demo,
-  },
+export const PV_FIELDS: FieldMetaOf<"pv", "resource_location"> = {
+  peak_sun_hours_estimate: field(
+    "solarHours",
+    "Jam matahari efektif (estimasi)",
+    "jam/hari",
+  ),
+  system_performance_factor: field(
+    "pvDerate",
+    "Faktor performa sistem",
+    "%",
+    "Pendekatan rugi-rugi sistem; harus konsisten dengan model profil PV.",
+  ),
+  fixed_capacity_kwp: field("pvFixed", "Kapasitas PV tetap", "kWp"),
+  capacity_min_kwp: field("pvMin", "Kapasitas minimum", "kWp"),
+  capacity_max_kwp: field("pvMax", "Kapasitas maksimum", "kWp"),
+  capex_per_kwp: field("pvCapex", "Investasi PV", "{cur}/kWp"),
+  opex_annual_per_kwp: field("pvOpex", "Biaya O&M tahunan PV", "{cur}/kWp/thn"),
+  lifetime_years: field("pvLife", "Umur pakai PV", "tahun"),
 };
 
-export const BIAYA_FIELDS: Record<BiayaNumberKey, NumberFieldMeta> = {
-  capex_pv: {
-    label: "CAPEX panel surya",
-    unit: "juta Rp/kWp",
-    helper: "Setara {usd} USD/kWp.",
-    source: SOURCE.demo,
-  },
-  capex_baterai: {
-    label: "CAPEX baterai",
-    unit: "juta Rp/kWh",
-    helper: "Setara {usd} USD/kWh.",
-    source: SOURCE.demo,
-  },
-  capex_inverter: {
-    label: "CAPEX inverter",
-    unit: "juta Rp/kW",
-    helper: "Setara {usd} USD/kW.",
-    source: SOURCE.demo,
-  },
-  harga_solar: {
-    label: "Harga solar",
-    unit: "Rp/liter",
-    helper: "Harga sampai di lokasi.",
-    source: SOURCE.user,
-  },
-  umur_proyek: {
-    label: "Umur proyek",
-    unit: "tahun",
-    helper: "Horizon NPC.",
-    source: SOURCE.demo,
-  },
-  diskonto: {
-    label: "Tingkat diskonto",
-    unit: "%/tahun",
-    helper: "Nilai kini biaya.",
-    source: SOURCE.demo,
-  },
-  kurs: {
-    label: "Kurs",
-    unit: "Rp/USD",
-    helper: "Isi kurs saat analisis.",
-    source: SOURCE.user,
-  },
-  batas_unserved: {
-    label: "Batas beban tak terlayani",
-    unit: "% energi/tahun",
-    helper: "0 % = semua beban wajib terlayani.",
-    source: SOURCE.user,
-  },
+export const GENERATOR_FIELDS: FieldMetaOf<"generators"> = {
+  unit_count: field("genCount", "Jumlah unit genset", "unit"),
+  rated_power_each_kw: field(
+    "genPower",
+    "Kapasitas per unit",
+    "kW",
+    "Untuk unit yang identik.",
+  ),
+  min_loading_fraction: field("genMinLoad", "Beban minimum operasi", "%"),
+  max_loading_fraction: field("genMaxLoad", "Beban maksimum operasi", "%"),
+  fuel_price_per_liter: field("fuelPrice", "Harga diesel", "{cur}/L"),
+  efficiency_fraction: field(
+    "genEfficiency",
+    "Efisiensi genset",
+    "%",
+    "Perkiraan awal. Data konsumsi pabrikan lebih baik jika tersedia.",
+  ),
+  capex_per_kw: field("genCapex", "Investasi genset baru", "{cur}/kW"),
+  opex_annual_per_unit: field("genOpex", "O&M tahunan per unit", "{cur}/tahun"),
+  lifetime_years: field("genLife", "Umur pakai genset", "tahun"),
 };
 
-export const SCENARIO_OPTIONS = [
-  { key: "skenario_baseline", label: "Diesel saja (baseline)" },
-  { key: "skenario_hybrid", label: "Diesel + PV + baterai (hybrid)" },
-] as const;
+export const BATTERY_FIELDS: FieldMetaOf<"battery"> = {
+  capacity_min_kwh: field("batMin", "Kapasitas energi minimum", "kWh"),
+  capacity_max_kwh: field("batMax", "Kapasitas energi maksimum", "kWh"),
+  power_max_kw: field("batPower", "Daya maksimum", "kW"),
+  charge_efficiency: field("batChargeEff", "Efisiensi pengisian", "%"),
+  discharge_efficiency: field("batDischargeEff", "Efisiensi pengosongan", "%"),
+  soc_min_fraction: field("batSocMin", "SOC minimum", "%"),
+  soc_max_fraction: field("batSocMax", "SOC maksimum", "%"),
+  soc_initial_fraction: field("batSocInitial", "SOC awal", "%"),
+  capex_per_kwh: field("batCapex", "Investasi kapasitas energi", "{cur}/kWh"),
+  power_capex_per_kw: field(
+    "batPowerCapex",
+    "Investasi kapasitas daya",
+    "{cur}/kW",
+  ),
+  lifetime_years: field("batLife", "Umur pakai baterai", "tahun"),
+};
 
-export const LOAD_PROFILE_COLUMNS = "timestamp, load_kW";
-export const LOAD_PROFILE_FORMAT_NOTE =
-  "Format .csv atau .xlsx · 24 atau 8.760 baris";
+export const ECONOMICS_FIELDS: FieldMetaOf<"economics"> = {
+  discount_rate: field("discountRate", "Tingkat diskonto", "%/tahun"),
+  fuel_price_escalation_annual: field(
+    "fuelEscalation",
+    "Perubahan harga diesel tahunan",
+    "%/tahun",
+    "Gunakan 0 sampai rumus eskalasi bahan bakar tervalidasi.",
+  ),
+  additional_project_cost: field(
+    "projectExtraCost",
+    "Biaya proyek tambahan",
+    "{cur}",
+    "Mis. instalasi atau biaya pengembangan yang belum tercakup.",
+  ),
+};
+
+export const RELIABILITY_FIELDS: FieldMetaOf<"reliability"> = {
+  target_supply_fraction: field(
+    "targetReliability",
+    "Target pemenuhan kebutuhan",
+    "%",
+  ),
+  max_unmet_energy_fraction: field(
+    "maxUnmet",
+    "Maksimum energi tak terpenuhi",
+    "%/tahun",
+  ),
+  reserve_margin_fraction: field(
+    "reserveMargin",
+    "Cadangan daya minimum",
+    "%",
+    "Kebutuhan model tambahan; belum tentu tersedia di konfigurasi standar.",
+  ),
+};

@@ -9,21 +9,24 @@ export const REDIRECT_DELAY_MS = 1500;
 
 export const POLLING_INTERVAL_MS = 1000;
 
-/** Warna label "Skenario A/B" mengikuti warna energi skenarionya. */
+/** Warna label "Skenario A/B/C" mengikuti warna energi skenarionya. */
 export const SCENARIO_CODE_CLASS: Record<ScenarioKey, string> = {
-  baseline: "text-energy-diesel",
-  hybrid: "text-brand",
+  diesel_only: "text-energy-diesel",
+  pv_diesel: "text-energy-pv-ink",
+  pv_diesel_battery: "text-brand",
 };
 
 export const SCENARIO_RUNNING_DESCRIPTION: Record<ScenarioKey, string> = {
-  baseline: "Baseline sedang menghitung biaya operasi diesel saja.",
-  hybrid:
-    "Hybrid sedang mencari kapasitas PV, baterai, dan inverter dengan biaya terendah.",
+  diesel_only: "Diesel-only sedang menghitung biaya operasi genset saja.",
+  pv_diesel: "PV + diesel sedang mencari kapasitas PV dengan biaya terendah.",
+  pv_diesel_battery:
+    "PV + diesel + baterai sedang mencari kapasitas PV dan baterai dengan biaya terendah.",
 };
 
 export const SCENARIO_DONE_PREFIX: Record<ScenarioKey, string> = {
-  baseline: "Baseline selesai.",
-  hybrid: "Hybrid selesai.",
+  diesel_only: "Diesel-only selesai.",
+  pv_diesel: "PV + diesel selesai.",
+  pv_diesel_battery: "PV + diesel + baterai selesai.",
 };
 
 type RunStatusMeta = {

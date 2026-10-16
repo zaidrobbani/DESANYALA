@@ -1,6 +1,6 @@
 # DesaNyala FE
 
-Frontend DesaNyala: simulasi dan optimasi sistem energi desa, membandingkan **diesel saja (baseline)** dengan **diesel + panel surya + baterai (hybrid)** pada beban yang sama.
+Frontend DesaNyala: simulasi dan optimasi sistem energi desa, membandingkan skenario **diesel-only**, **PV + diesel**, dan **PV + diesel + baterai** pada beban yang sama.
 
 Desain: [Figma DESANYALA](https://www.figma.com/design/fSuDUVYlm7vOzb3jd3AdWP/DESANYALA?node-id=38-748)
 
@@ -8,7 +8,7 @@ Desain: [Figma DESANYALA](https://www.figma.com/design/fSuDUVYlm7vOzb3jd3AdWP/DE
 
 | Halaman | Route | Frame Figma | Status |
 | --- | --- | --- | --- |
-| Input simulasi (contoh & input manual) | `/simulasi` | 01, 01b | Selesai |
+| Input simulasi (7 card, kontrak `desanyala.input.v1`) | `/simulasi` | 01, 01b + `desanyala_input_cards.html` | Selesai |
 | Proses solver (berjalan, selesai, gagal) | `/simulasi/proses?id=` | 03, 03b | Selesai |
 | Hasil simulasi | `/simulasi/hasil?id=` | 02, 02b–d, 04 | Placeholder (di luar scope) |
 
@@ -16,8 +16,8 @@ Desain: [Figma DESANYALA](https://www.figma.com/design/fSuDUVYlm7vOzb3jd3AdWP/DE
 
 ### Mencoba alur demo (mock API)
 
-1. Buka `/simulasi`, lalu klik **Jalankan optimasi** dengan nilai default. Kedua skenario selesai *optimal* dalam ±14 detik, lalu halaman pindah otomatis ke Hasil.
-2. **Skenario gagal (frame 03b):** ubah *Kapasitas terpasang* diesel menjadi `2 × 30` (60 kW < beban puncak 77,90 kW) lalu jalankan. Baseline akan *infeasible* dan Hybrid dilewati. Cara lain: set `NEXT_PUBLIC_MOCK_SOLVER_RESULT=fail`.
+1. Buka `/simulasi`, isi **Nama proyek** dan **Lokasi administratif** (wajib), lalu klik **Jalankan optimasi**. Ketiga skenario selesai *optimal* dalam ±21 detik, lalu halaman pindah otomatis ke Hasil.
+2. **Skenario gagal (frame 03b):** ubah *Kapasitas per unit* genset menjadi `1` (2 kW < daya terpasang 2,65 kW) lalu jalankan. Diesel-only akan *infeasible* dan skenario berikutnya dilewati. Cara lain: set `NEXT_PUBLIC_MOCK_SOLVER_RESULT=fail`.
 3. Tombol **Batalkan** menghentikan solver yang sedang berjalan.
 
 ## Tech stack
@@ -45,7 +45,7 @@ bun run dev          # http://localhost:3000
 | --- | --- |
 | `NEXT_PUBLIC_BASE_API_URL` | Base URL backend. Kosong = mock API otomatis aktif. |
 | `NEXT_PUBLIC_USE_MOCK_API` | `true` untuk memaksa mock walau base URL terisi. |
-| `NEXT_PUBLIC_MOCK_SOLVER_RESULT` | `auto` / `success` / `fail`. `auto` membuat baseline *infeasible* bila kapasitas diesel < beban puncak dan batas beban tak terlayani = 0. |
+| `NEXT_PUBLIC_MOCK_SOLVER_RESULT` | `auto` / `success` / `fail`. `auto` membuat diesel-only *infeasible* bila kapasitas genset (unit × kW) < total daya terpasang peralatan dan kekurangan listrik tidak diizinkan. |
 
 ## Scripts
 
@@ -127,10 +127,15 @@ Format commit: [Conventional Commits](https://www.conventionalcommits.org/) deng
 Lihat `src/repository/simulation/dto.ts`.
 
 ```
-GET  /load-profiles/presets
-POST /simulations                (multipart bila ada file profil beban)
+POST /simulations                (body: desanyala.input.v1)
 GET  /simulations/:id/progress   (di-poll tiap 1 detik)
 POST /simulations/:id/cancel
 ```
 
-Respons dibungkus `{ payload: ... }`. Selama `NEXT_PUBLIC_BASE_API_URL` kosong, semua call dijawab oleh `src/repository/simulation/mock.ts`. State run disimpan di `sessionStorage` sehingga halaman proses tetap jalan setelah refresh. Data preset **El Espino** di mock masih **placeholder**, bukan data asli Balderrama dkk. (2019).
+Request body `POST /simulations` mengikuti kontrak **`desanyala.input.v1`** dari `desanyala_input_cards.html` / `desanyala_variable_names.txt` (sama dengan `buildConfig()` di HTML referensi):
+
+- Nama field form = JSON path kontrak (mis. `pv.capex_per_kwp`, `demand.loads.0.power_w`), dan atribut `id` input = HTML ID di referensi (mis. `pvCapex`). Pemetaan ada di `src/feature/input-simulasi/data.ts`.
+- Persentase diisi 0..100 di UI dan dikirim sebagai pecahan 0..1. Field konstan (`schema_version`, `time_step_hours`, `profile_generation_method`, `hourly_profile_source`, `unit_commitment_model`, `solver_configuration`, `notes`) diisi oleh mapper `src/feature/input-simulasi/util/to-simulation-request.ts`.
+- Kontrak ini format DesaNyala, **bukan** workbook native Offgridders. Profil beban dan profil PV per jam belum dibuat FE; backend/adapter yang membentuknya.
+
+Respons dibungkus `{ payload: ... }`. Selama `NEXT_PUBLIC_BASE_API_URL` kosong, semua call dijawab oleh `src/repository/simulation/mock.ts`. State run disimpan di `sessionStorage` sehingga halaman proses tetap jalan setelah refresh.

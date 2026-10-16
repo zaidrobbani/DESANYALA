@@ -2,7 +2,6 @@ import { axiosPublic } from "@/lib/axios";
 import { isMockApi } from "@/lib/env";
 import { tryCatch } from "@/lib/try-catch";
 import type {
-  LoadProfilePresetListResponse,
   SimulationCreateResponse,
   SimulationProgressResponse,
   SimulationRequest,
@@ -10,45 +9,17 @@ import type {
 import {
   mockCancelSimulation,
   mockCreateSimulation,
-  mockGetLoadProfilePresets,
   mockGetSimulationProgress,
 } from "./mock";
 
-export const GetLoadProfilePresets =
-  async (): Promise<LoadProfilePresetListResponse> => {
-    if (isMockApi()) return mockGetLoadProfilePresets();
-
-    const { data, error } = await tryCatch(
-      axiosPublic.get<LoadProfilePresetListResponse>("/load-profiles/presets"),
-    );
-
-    if (error || !data?.data) {
-      throw error ?? new Error("Gagal memuat profil beban contoh");
-    }
-
-    return data.data;
-  };
-
 export const CreateSimulation = async (
   payload: SimulationRequest,
-  loadProfileFile: File | null,
 ): Promise<SimulationCreateResponse> => {
   if (isMockApi()) return mockCreateSimulation(payload);
 
-  const request = loadProfileFile
-    ? (() => {
-        const formData = new FormData();
-        formData.append("payload", JSON.stringify(payload));
-        formData.append("load_profile", loadProfileFile);
-        return axiosPublic.post<SimulationCreateResponse>(
-          "/simulations",
-          formData,
-          { headers: { "Content-Type": "multipart/form-data" } },
-        );
-      })()
-    : axiosPublic.post<SimulationCreateResponse>("/simulations", payload);
-
-  const { data, error } = await tryCatch(request);
+  const { data, error } = await tryCatch(
+    axiosPublic.post<SimulationCreateResponse>("/simulations", payload),
+  );
 
   if (error || !data?.data) {
     throw error ?? new Error("Gagal menjalankan optimasi");

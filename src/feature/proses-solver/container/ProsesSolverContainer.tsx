@@ -15,7 +15,7 @@ export const ProsesSolverHero = () => (
     size="md"
     eyebrow="Simulasi · memproses"
     title="Menjalankan optimasi"
-    description="Baseline dan Hybrid dijalankan berurutan pada beban yang sama. Halaman pindah otomatis ke Hasil saat selesai."
+    description="Skenario yang dipilih dijalankan berurutan pada beban yang sama. Halaman pindah otomatis ke Hasil saat selesai."
   />
 );
 
