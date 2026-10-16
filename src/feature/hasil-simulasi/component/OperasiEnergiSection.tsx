@@ -139,9 +139,7 @@ const OperasiEnergiSection = ({
     >
       {rows.length === 0 ? (
         <p className="py-8 text-center text-fg-secondary text-small">
-          Dispatch per jam tidak tersedia untuk skenario ini (backend tidak
-          mengirim data dispatch, atau data hanya tersimpan selama tab ini
-          terbuka).
+          Dispatch per jam tidak tersedia untuk skenario ini.
         </p>
       ) : (
         <>

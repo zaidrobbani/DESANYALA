@@ -73,7 +73,7 @@ const KecukupanSection = ({
       <div className="flex items-center gap-6">
         {servedPct === null ? (
           <p className="text-fg-secondary text-small">
-            Backend tidak mengirim nilai keandalan pasokan.
+            Nilai keandalan pasokan tidak tersedia.
           </p>
         ) : (
           <SupplyDonut servedPct={servedPct} />

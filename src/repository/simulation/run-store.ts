@@ -13,8 +13,9 @@
  * belakang), run dilanjutkan otomatis dari input yang tersimpan
  * (`resumeOrphanedRun`), bukan dianggap gagal.
  *
- * Setiap run mencatat sumbernya (`source`): backend, mock FE, atau mock FE
- * sebagai fallback karena backend error (lihat API_MODE di lib/env.ts).
+ * Setiap run mencatat sumbernya (`source`) dan alasan fallback (`fallback`)
+ * di sessionStorage untuk debugging. Keduanya sengaja tidak ditampilkan di UI:
+ * tampilan proses & hasil sama untuk semua sumber (lihat API_MODE).
  */
 import { ApiError } from "@/lib/try-catch";
 import { formatNumber } from "@/shared/util/number";
@@ -236,7 +237,7 @@ const responseFailure = (response: OptimizationResponse): RunError | null => {
   if (!failed) {
     return {
       code: "EMPTY_RESULT",
-      message: "Backend tidak mengembalikan hasil skenario.",
+      message: "Tidak ada hasil skenario.",
     };
   }
   const label = SCENARIO_LABEL[failed.scenario_id] ?? failed.scenario_name;
@@ -377,13 +378,7 @@ export const getRunResult = (id: string): SimulationResult => {
       },
     );
   }
-  return {
-    id: run.id,
-    input: run.request,
-    response: run.response,
-    source: run.source,
-    fallback: run.fallback,
-  };
+  return { id: run.id, input: run.request, response: run.response };
 };
 
 export const getRunInput = (id: string): SimulationRequest => {
@@ -406,13 +401,9 @@ const runningProgress = (elapsed: number, expected: number) =>
 const scenarioCode = (index: number) =>
   `Skenario ${String.fromCharCode(65 + index)}`;
 
-const SOLVER_BY_SOURCE: Record<
-  RunSource,
-  Pick<SimulationProgress["solver"], "name" | "method">
-> = {
-  backend: { name: "Offgridders", method: "backend DesaNyala" },
-  mock: { name: "Mock FE", method: "heuristik di browser" },
-  mock_fallback: { name: "Mock FE", method: "fallback, backend error" },
+const SOLVER: Pick<SimulationProgress["solver"], "name" | "method"> = {
+  name: "DesaNyala",
+  method: "optimasi skenario",
 };
 
 const buildLogs = (
@@ -422,30 +413,12 @@ const buildLogs = (
 ): SolverLogLine[] => {
   const keys = run.request.optimization.scenarios.map(({ id }) => id);
   const logs: SolverLogLine[] = [
-    {
-      level: "command",
-      text:
-        run.source === "mock"
-          ? "> mock FE (backend tidak dipanggil)"
-          : "> POST /api/v1/optimizations",
-    },
+    { level: "command", text: "> jalankan optimasi" },
     {
       level: "info",
       text: `Payload ${run.request.schema_version} · ${keys.length} skenario (${keys.join(", ")}) · ${run.request.project.simulation_days} hari / ${formatNumber(periods)} interval`,
     },
   ];
-  if (run.fallback) {
-    logs.push(
-      {
-        level: "error",
-        text: `Backend gagal (${run.fallback.code}): ${run.fallback.message}`,
-      },
-      {
-        level: "warning",
-        text: "! Beralih ke mock FE. Angka hasil adalah heuristik, bukan Offgridders.",
-      },
-    );
-  }
   if (run.resumed > 0) {
     logs.push({
       level: "warning",
@@ -456,11 +429,9 @@ const buildLogs = (
     logs.push({
       level: "info",
       text:
-        run.source !== "backend"
-          ? "Mock FE menghitung skenario di browser…"
-          : elapsed < 2
-            ? "Mengirim konfigurasi ke backend…"
-            : "Backend membentuk profil per jam dan menjalankan Offgridders…",
+        elapsed < 2
+          ? "Menyiapkan konfigurasi…"
+          : "Membentuk profil per jam dan mengoptimasi skenario…",
     });
     return logs;
   }
@@ -469,7 +440,7 @@ const buildLogs = (
   if (response) {
     logs.push({
       level: "info",
-      text: `Respons diterima · run ${response.project_id} · status ${response.status}`,
+      text: `Selesai · run ${response.project_id} · status ${response.status}`,
     });
     for (const scenario of response.scenario_results) {
       const ok = isUsableScenario(scenario);
@@ -554,11 +525,9 @@ export const getRunProgress = (id: string, now = Date.now()) => {
     current_scenario_index: keys.length,
     total_scenarios: keys.length,
     elapsed_seconds: elapsed,
-    solver: { ...SOLVER_BY_SOURCE[run.source], periods },
+    solver: { ...SOLVER, periods },
     scenarios,
     logs: buildLogs(run, periods, elapsed),
     error: run.error,
-    source: run.source,
-    fallback: run.fallback,
   } satisfies SimulationProgress;
 };

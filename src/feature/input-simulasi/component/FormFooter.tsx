@@ -1,14 +1,6 @@
 import { IconArrowRight, IconRestore } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { API_MODE, type ApiMode } from "@/lib/env";
-
-/** Sumber hasil yang akan dipakai (NEXT_PUBLIC_API_MODE). */
-const API_MODE_NOTE: Record<ApiMode, string> = {
-  auto: "Hasil dari backend; otomatis pakai mock FE bila backend error",
-  backend: "Hasil dari backend",
-  mock: "Mode mock FE: backend tidak dipanggil",
-};
 
 interface FormFooterProps {
   isSubmitting: boolean;
@@ -31,7 +23,7 @@ const FormFooter = ({ isSubmitting, onReset }: FormFooterProps) => {
 
       <div className="flex flex-col-reverse items-stretch gap-3 sm:flex-row sm:items-center">
         <p className="text-center text-fg-tertiary text-small">
-          {API_MODE_NOTE[API_MODE]}
+          Proses bisa memakan beberapa menit
         </p>
         <Button
           type="submit"

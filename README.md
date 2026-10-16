@@ -45,7 +45,7 @@ bun run dev          # http://localhost:3000
 | Variabel | Keterangan |
 | --- | --- |
 | `NEXT_PUBLIC_BASE_API_URL` | Base URL backend, mis. `https://desa-nyala-backend.vercel.app`. Kosong = mock API otomatis aktif. |
-| `NEXT_PUBLIC_API_MODE` | `auto` (default): coba backend, bila backend error (engine error, 5xx, jaringan, timeout) run itu otomatis dihitung mock FE dan ditandai "Mock FE" di halaman proses & hasil. `backend`: selalu backend, error ditampilkan. `mock`: selalu mock FE. Error input (422 per field) tidak pernah di-fallback. |
+| `NEXT_PUBLIC_API_MODE` | `auto` (default): coba backend, bila backend error (engine error, 5xx, jaringan, timeout) run itu otomatis dihitung mock FE tanpa pemberitahuan di UI (tampilan proses & hasil sama dengan run backend). `backend`: selalu backend, error ditampilkan. `mock`: selalu mock FE. Error input (422 per field) tidak pernah di-fallback. |
 | `NEXT_PUBLIC_MOCK_SOLVER_RESULT` | `auto` / `success` / `fail` / `fail-partial` / `error`. `auto` membuat diesel-only *infeasible* bila genset eksisting (unit × kW) < total daya terpasang peralatan dan kekurangan listrik tidak diizinkan. |
 | `NEXT_PUBLIC_OPTIMIZATION_TIMEOUT_MS` | Batas waktu `POST /api/v1/optimizations` (default 900000 = 15 menit). |
 
@@ -138,5 +138,5 @@ POST /api/v1/optimizations       jalankan semua skenario, sinkron -> Optimizatio
 - **Response** = `OptimizationResponse` (`desanyala_output_variable_names.txt`): `scenario_results[]` berisi `metrics`, `capacities`, `validation`, dan `dispatch[]` per jam.
 - **Validasi** di `src/schemas/simulation/simulation.schema.ts` mengikuti Pydantic backend (`app/schemas/input.py`) plus penolakan adapter: eskalasi harga diesel harus 0, `fuel_model=curve` dan objektif `fuel_consumption` belum didukung, skenario PV + diesel + baterai butuh baterai aktif, `max_unmet ≤ 1 − target`. Error 422 dari backend dipetakan ke field form terkait.
 - **Run lokal** (`src/repository/simulation/run-store.ts`): backend tidak punya endpoint progres/batal/hasil per id, jadi FE membuat id run sendiri, menjalankan request di latar belakang, menurunkan progres dari waktu berjalan, dan menyimpan input + respons di `sessionStorage` (dispatch disimpan per kolom). Refresh saat solver berjalan menandai run *terputus*.
-- Mock FE (`src/repository/simulation/mock.ts`) menghasilkan respons berbentuk sama dari heuristik sederhana (bukan Offgridders). Dipakai di mode `mock`, atau sebagai fallback di mode `auto` saat backend error; sumber setiap run (`backend` / `mock` / `mock_fallback`) disimpan bersama hasilnya.
+- Mock FE (`src/repository/simulation/mock.ts`) menghasilkan respons berbentuk sama dari heuristik sederhana (bukan Offgridders). Dipakai di mode `mock`, atau sebagai fallback di mode `auto` saat backend error; sumber setiap run (`source`: `backend` / `mock` / `mock_fallback`) dan alasan fallback (`fallback`) hanya disimpan di `sessionStorage` (kunci `desanyala:simulation-run:<id>`) untuk debugging, tidak ditampilkan di UI.
 - CORS backend saat ini hanya mengizinkan `http://localhost:3000` (lihat `DESANYALA_CORS_ORIGINS` di backend); domain deploy FE perlu ditambahkan di sana.

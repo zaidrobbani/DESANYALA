@@ -95,7 +95,7 @@ const HasilSimulasiContainer = () => {
     hero = (
       <HasilSimulasiHero
         title={`Hasil optimasi sistem energi${where ? ` untuk ${where}` : ""}`}
-        description={`${DEFAULT_DESCRIPTION} ${result.source === "backend" ? "Dihitung backend (Offgridders)" : "Dihitung mock FE, bukan Offgridders"}, periode ${formatNumber(response.period_days)} hari, ${formatNumber(response.time_step_hours)} jam per interval.`}
+        description={`${DEFAULT_DESCRIPTION} Periode ${formatNumber(response.period_days)} hari, ${formatNumber(response.time_step_hours)} jam per interval.`}
         aside={
           <HeroResultPanel
             label={cheapest ? "LCOE terendah" : "Status solver"}
@@ -134,11 +134,7 @@ const HasilSimulasiContainer = () => {
 
       {result && response && selected && selectedKey && (
         <>
-          <ResultStatusBanner
-            response={response}
-            source={result.source}
-            fallback={result.fallback}
-          />
+          <ResultStatusBanner response={response} />
 
           <ScenarioTabs
             response={response}

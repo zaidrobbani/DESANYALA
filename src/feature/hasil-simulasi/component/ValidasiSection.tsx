@@ -89,7 +89,7 @@ const ValidasiSection = ({
     <SectionCard
       icon={IconListCheck}
       title="Validasi hasil"
-      description="Pemeriksaan backend terhadap solusi skenario ini."
+      description="Pemeriksaan terhadap solusi skenario ini."
     >
       <p
         className={cn(
@@ -137,7 +137,7 @@ const ValidasiSection = ({
       {validation.warnings.length > 0 && (
         <details className="group">
           <summary className="cursor-pointer text-body-strong text-warning">
-            {formatNumber(validation.warnings.length)} catatan dari backend
+            {formatNumber(validation.warnings.length)} catatan model
           </summary>
           <ul className="mt-2 flex list-disc flex-col gap-1.5 pl-5">
             {validation.warnings.map((warning) => (

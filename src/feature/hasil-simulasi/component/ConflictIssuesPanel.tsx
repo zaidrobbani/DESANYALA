@@ -37,8 +37,8 @@ const ConflictIssuesPanel = ({
 
       {issues.length === 0 ? (
         <p className="py-4 text-fg-secondary text-small">
-          Tidak ada parameter yang mencurigakan menurut aturan sederhana FE.
-          Baca pesan backend di samping, lalu periksa batas kapasitas dan
+          Tidak ada parameter yang mencurigakan menurut pemeriksaan otomatis.
+          Baca pesan solver di samping, lalu periksa batas kapasitas dan
           kebijakan kekurangan energi di input.
         </p>
       ) : (

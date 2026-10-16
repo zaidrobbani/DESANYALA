@@ -160,8 +160,8 @@ const PerbandinganSection = ({
         </table>
       </div>
       <p className="text-fg-tertiary text-small">
-        Satuan LCOE dan biaya mengikuti mata uang proyek dari backend (
-        {units.currency}). Skenario infeasible/error tidak dibandingkan.
+        Satuan LCOE dan biaya mengikuti mata uang proyek ({units.currency}).
+        Skenario infeasible/error tidak dibandingkan.
       </p>
     </SectionCard>
   );

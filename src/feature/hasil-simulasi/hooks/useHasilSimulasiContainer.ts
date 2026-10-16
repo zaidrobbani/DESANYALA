@@ -60,7 +60,7 @@ export const useHasilSimulasiContainer = () => {
     : resultQuery.error
       ? getErrorMessage(resultQuery.error, "Gagal memuat hasil simulasi")
       : result && scenarios.length === 0
-        ? "Backend tidak mengembalikan hasil skenario untuk run ini."
+        ? "Tidak ada hasil skenario untuk run ini."
         : null;
 
   const fileBase = () => {

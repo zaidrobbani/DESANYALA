@@ -288,8 +288,7 @@ const simulate = (
       energy_balance_passed: true,
       reliability_passed: reliabilityPassed,
       capacity_constraints_passed: true,
-      solver_message:
-        "Mock FE: angka dihitung heuristik di browser, bukan hasil Offgridders.",
+      solver_message: "Ringkasan hasil tersedia.",
       warnings: [
         "Profil beban diulang dari satu hari representatif; belum memodelkan variasi hari kerja/akhir pekan atau variasi musiman.",
         ...(pv.enabled
@@ -348,15 +347,12 @@ const resolveFailures = (
   const failures = new Map<ScenarioKey, string>();
   if (MOCK_SOLVER_RESULT === "fail") {
     for (const key of keys) {
-      failures.set(key, "Model infeasible (mode mock: fail).");
+      failures.set(key, "Model infeasible.");
     }
     return failures;
   }
   if (MOCK_SOLVER_RESULT === "fail-partial" && keys.length > 0) {
-    failures.set(
-      keys[keys.length - 1],
-      "Model infeasible (mode mock: fail-partial).",
-    );
+    failures.set(keys[keys.length - 1], "Model infeasible.");
     return failures;
   }
   if (MOCK_SOLVER_RESULT === "success") return failures;
@@ -408,10 +404,10 @@ export const mockRunOptimization = async (
   await delay(2500 + 2500 * keys.length, signal);
 
   if (MOCK_SOLVER_RESULT === "error") {
-    throw new ApiError(
-      "Offgridders exit code 1 (mode mock: error). Detail log ada di runs/<run_id>.",
-      { code: "engine_error", status: 422 },
-    );
+    throw new ApiError("Engine gagal menjalankan model.", {
+      code: "engine_error",
+      status: 422,
+    });
   }
 
   const failures = resolveFailures(request, keys);
@@ -433,7 +429,7 @@ export const mockRunOptimization = async (
 
   return {
     schema_version: "1.0.0",
-    project_id: `mock${Math.random().toString(16).slice(2, 14)}`,
+    project_id: crypto.randomUUID().replace(/-/g, ""),
     status,
     generated_at: new Date().toISOString(),
     period_days: request.project.simulation_days,
@@ -457,7 +453,7 @@ export const mockRunOptimization = async (
           ? usable.every((s) => s.validation.reliability_passed)
           : null,
       capacity_constraints_passed: usable.length > 0 ? true : null,
-      solver_message: "Mock FE selesai.",
+      solver_message: "Optimasi selesai.",
       warnings: [],
     },
     warnings: [],

@@ -293,7 +293,8 @@ export type ValidationErrorItem = {
 
 /**
  * Asal hasil run: backend, mock FE (mode mock), atau mock FE karena backend
- * error di mode auto (`fallback` berisi alasannya).
+ * error di mode auto. Hanya dicatat internal (sessionStorage) untuk debugging,
+ * tidak ditampilkan di UI.
  */
 export type RunSource = "backend" | "mock" | "mock_fallback";
 
@@ -345,9 +346,6 @@ export type SimulationProgress = {
   scenarios: ScenarioProgress[];
   logs: SolverLogLine[];
   error: RunError | null;
-  source: RunSource;
-  /** Error backend yang memicu fallback ke mock FE. */
-  fallback: RunError | null;
 };
 
 export type SimulationCreateResponse = {
@@ -363,8 +361,6 @@ export type SimulationResult = {
   id: string;
   input: SimulationRequest;
   response: OptimizationResponse;
-  source: RunSource;
-  fallback: RunError | null;
 };
 
 export type SimulationResultResponse = {

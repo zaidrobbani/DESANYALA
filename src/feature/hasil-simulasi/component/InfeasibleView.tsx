@@ -74,7 +74,7 @@ const InfeasibleView = ({
         <div className="flex flex-col gap-5">
           <SolverLogPanel
             logs={logs}
-            title="Pesan backend (asli)"
+            title="Pesan solver (asli)"
             badge={<SourceBadge tone="neutral">Tidak disamarkan</SourceBadge>}
           />
           {alternative && (
