@@ -3,12 +3,14 @@ import {
   CancelSimulation,
   CreateSimulation,
   GetLoadProfilePresets,
+  GetSimulationInput,
   GetSimulationProgress,
   GetSimulationResult,
 } from "./action";
 import type {
   LoadProfilePresetListResponse,
   SimulationCreateResponse,
+  SimulationInputResponse,
   SimulationProgressResponse,
   SimulationRequest,
   SimulationResultResponse,
@@ -20,6 +22,7 @@ export const simulationKeys = {
   presets: () => ["load-profile-presets"] as const,
   progress: (id: string) => ["simulations", id, "progress"] as const,
   result: (id: string) => ["simulations", id, "result"] as const,
+  input: (id: string) => ["simulations", id, "input"] as const,
 };
 
 const POLLING_STATUSES: SimulationStatus[] = ["queued", "running"];
@@ -80,5 +83,15 @@ export const useGetSimulationResult = (id: string) => {
     // Hasil run tidak berubah setelah solver selesai.
     staleTime: Number.POSITIVE_INFINITY,
     retry: 1,
+  });
+};
+
+export const useGetSimulationInput = (id: string) => {
+  return useQuery<SimulationInputResponse, Error>({
+    queryKey: simulationKeys.input(id),
+    queryFn: () => GetSimulationInput(id),
+    enabled: !!id,
+    staleTime: Number.POSITIVE_INFINITY,
+    retry: false,
   });
 };

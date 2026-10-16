@@ -8,7 +8,6 @@ import {
   SegmentedTabsTrigger,
 } from "@/shared/component/SegmentedTabs";
 import { DISPATCH_SERIES, LOAD_SERIES, SCENARIO_META } from "../data";
-import type { ResultSummary } from "../util/summarize-result";
 import DispatchChart from "./DispatchChart";
 
 const DispatchLegend = () => (
@@ -36,26 +35,34 @@ const DispatchLegend = () => (
 );
 
 interface AliranEnergiSectionProps {
-  summary: ResultSummary;
+  /** Urutan = urutan toggle; toggle disembunyikan bila hanya satu. */
+  scenarios: ScenarioResult[];
+  /** Nomor section di judul, mis. 6 -> "6. Aliran energi harian". */
+  number?: number;
 }
 
-const AliranEnergiSection = ({ summary }: AliranEnergiSectionProps) => {
-  const scenarios: ScenarioResult[] = [summary.baseline, summary.hybrid];
+const AliranEnergiSection = ({
+  scenarios,
+  number,
+}: AliranEnergiSectionProps) => {
+  const defaultScenario = scenarios[scenarios.length - 1]?.key;
 
   return (
-    <Tabs defaultValue="hybrid" className="w-full gap-0">
+    <Tabs defaultValue={defaultScenario} className="w-full gap-0">
       <SectionCard
         icon={IconBolt}
-        title="6. Aliran energi harian"
+        title={`${number ? `${number}. ` : ""}Aliran energi harian`}
         description="Daya rata-rata per jam pada hari tipikal (kW)."
         action={
-          <SegmentedTabsList aria-label="Skenario aliran energi">
-            {scenarios.map((scenario) => (
-              <SegmentedTabsTrigger key={scenario.key} value={scenario.key}>
-                {SCENARIO_META[scenario.key].name}
-              </SegmentedTabsTrigger>
-            ))}
-          </SegmentedTabsList>
+          scenarios.length > 1 && (
+            <SegmentedTabsList aria-label="Skenario aliran energi">
+              {scenarios.map((scenario) => (
+                <SegmentedTabsTrigger key={scenario.key} value={scenario.key}>
+                  {SCENARIO_META[scenario.key].name}
+                </SegmentedTabsTrigger>
+              ))}
+            </SegmentedTabsList>
+          )
         }
         className="h-full"
       >

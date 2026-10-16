@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   type FieldErrors,
@@ -14,6 +14,7 @@ import type { LoadProfileValidation } from "@/repository/simulation/dto";
 import {
   useCreateSimulation,
   useGetLoadProfilePresets,
+  useGetSimulationInput,
 } from "@/repository/simulation/query";
 import {
   parseDieselCapacity,
@@ -33,6 +34,7 @@ import {
   SIMULATION_STEPS,
   SOURCE,
 } from "../data";
+import { fromSimulationRequest } from "../util/from-simulation-request";
 import {
   type ParsedLoadProfile,
   parseLoadProfileCsv,
@@ -109,6 +111,46 @@ export const useInputSimulasiContainer = () => {
     control,
     name: "parameter.diesel_kapasitas",
   });
+
+  /* --- Isi ulang dari run sebelumnya (?dari=<id>&fokus=<field>) ------- */
+  const searchParams = useSearchParams();
+  const fromId = searchParams.get("dari") ?? "";
+  const focusField = searchParams.get("fokus");
+  const previousInputQuery = useGetSimulationInput(fromId);
+  const previousRequest = previousInputQuery.data?.payload;
+  const previousInputError = previousInputQuery.error;
+
+  useEffect(() => {
+    if (!previousRequest) return;
+    reset(fromSimulationRequest(previousRequest));
+    const lostFile =
+      previousRequest.load.source === "manual" &&
+      previousRequest.load.profile_file_name;
+    toast.success("Input dimuat dari run sebelumnya", {
+      description: lostFile
+        ? `Unggah ulang file ${lostFile} bila masih diperlukan.`
+        : undefined,
+    });
+    if (!focusField) return;
+    // Tunggu nilai hasil reset tergambar sebelum fokus ke field.
+    const frame = requestAnimationFrame(() => {
+      const field = document.getElementById(focusField);
+      if (!(field instanceof HTMLElement)) return;
+      field.focus({ preventScroll: true });
+      field.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [previousRequest, focusField, reset]);
+
+  useEffect(() => {
+    if (!previousInputError) return;
+    toast.error("Input run sebelumnya tidak dapat dimuat", {
+      description: getErrorMessage(
+        previousInputError,
+        "Form memakai nilai default.",
+      ),
+    });
+  }, [previousInputError]);
 
   /* --- Profil beban contoh ------------------------------------------- */
   const presetsQuery = useGetLoadProfilePresets();

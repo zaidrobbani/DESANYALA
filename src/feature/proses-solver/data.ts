@@ -1,7 +1,6 @@
 import type {
   ScenarioKey,
   ScenarioRunStatus,
-  SolverLogLine,
 } from "@/repository/simulation/dto";
 
 /** Jeda sebelum otomatis pindah ke halaman Hasil setelah solver selesai. */
@@ -68,11 +67,4 @@ export const RUN_STATUS_META: Record<ScenarioRunStatus, RunStatusMeta> = {
     textClass: "text-fg-secondary",
     barClass: "[&>[data-slot=progress-indicator]]:bg-fg-tertiary",
   },
-};
-
-export const LOG_LEVEL_CLASS: Record<SolverLogLine["level"], string> = {
-  command: "text-fg-tertiary",
-  info: "text-fg-primary",
-  success: "text-success",
-  error: "text-danger",
 };

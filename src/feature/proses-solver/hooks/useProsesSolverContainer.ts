@@ -23,14 +23,21 @@ export const useProsesSolverContainer = () => {
 
   const cancelSimulation = useCancelSimulation();
 
-  // Halaman pindah otomatis ke Hasil saat semua skenario selesai.
+  // Hasil tersedia bila semua selesai, atau gagal tapi ada skenario optimal
+  // (mis. hybrid infeasible, baseline tetap bisa dibandingkan).
+  const canViewResult =
+    status === "completed" ||
+    (status === "failed" &&
+      Boolean(progress?.scenarios.some((s) => s.status === "optimal")));
+
+  // Halaman pindah otomatis ke Hasil saat hasil tersedia.
   useEffect(() => {
-    if (status !== "completed" || !simulationId) return;
+    if (!canViewResult || !simulationId) return;
     const timer = setTimeout(() => {
       router.replace(ROUTES.simulasiHasil(simulationId));
     }, REDIRECT_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [status, simulationId, router]);
+  }, [canViewResult, simulationId, router]);
 
   const handleCancel = () => {
     if (!simulationId) return;
@@ -45,7 +52,9 @@ export const useProsesSolverContainer = () => {
   };
 
   const handleBackToInput = () => {
-    router.push(ROUTES.simulasi);
+    router.push(
+      simulationId ? ROUTES.simulasiDari(simulationId) : ROUTES.simulasi,
+    );
   };
 
   const handleViewResult = () => {
@@ -61,6 +70,7 @@ export const useProsesSolverContainer = () => {
   return {
     simulationId,
     progress,
+    canViewResult,
     isLoading: progressQuery.isLoading && Boolean(simulationId),
     loadError,
     retry: () => progressQuery.refetch(),

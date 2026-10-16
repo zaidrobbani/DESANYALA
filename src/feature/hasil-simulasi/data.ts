@@ -5,7 +5,15 @@ import {
   IconEngine,
   IconSolarPanel,
 } from "@tabler/icons-react";
-import type { ComponentKey, ScenarioKey } from "@/repository/simulation/dto";
+import type { FieldPath } from "react-hook-form";
+import type {
+  ComponentKey,
+  ConflictIssue,
+  ScenarioKey,
+  SimulationInputPath,
+} from "@/repository/simulation/dto";
+import type { SimulationFormValues } from "@/schemas/simulation/simulation.schema";
+import type { SourceTone } from "@/shared/component/SourceBadge";
 
 type ScenarioMeta = {
   /** Nama skenario di log solver. */
@@ -125,3 +133,71 @@ export type DetailTab = (typeof DETAIL_TABS)[number]["value"];
 
 export const RESULT_DISCLAIMER =
   "Hasil ini estimasi model berdasarkan asumsi skenario. Implementasi tetap butuh studi kelayakan lapangan, audit teknik, dan desain proteksi.";
+
+/* ------------------------------------------------------------------------ */
+/* Diagnosis infeasible                                                     */
+/* ------------------------------------------------------------------------ */
+
+type InputFieldLocation = {
+  /** Nama field form input (juga id elemen) untuk tombol "Ubah di input". */
+  field: FieldPath<SimulationFormValues>;
+  section: string;
+};
+
+const PARAMETER_SECTION = "3. Parameter sistem";
+
+export const INPUT_FIELD_LOCATION: Record<
+  SimulationInputPath,
+  InputFieldLocation
+> = {
+  "diesel.units": {
+    field: "parameter.diesel_kapasitas",
+    section: PARAMETER_SECTION,
+  },
+  "diesel.unit_capacity_kw": {
+    field: "parameter.diesel_kapasitas",
+    section: PARAMETER_SECTION,
+  },
+  "diesel.min_load_pct": {
+    field: "parameter.diesel_min_load",
+    section: PARAMETER_SECTION,
+  },
+  "pv.max_capacity_kwp": {
+    field: "parameter.pv_maks",
+    section: PARAMETER_SECTION,
+  },
+  "battery.max_capacity_kwh": {
+    field: "parameter.baterai_maks",
+    section: PARAMETER_SECTION,
+  },
+  "battery.min_soc_pct": {
+    field: "parameter.baterai_soc_min",
+    section: PARAMETER_SECTION,
+  },
+  max_unserved_energy_pct: {
+    field: "biaya.batas_unserved",
+    section: "4. Biaya & skenario",
+  },
+};
+
+type LikelihoodMeta = {
+  label: string;
+  tone: SourceTone;
+  rankClass: string;
+};
+
+export const LIKELIHOOD_META: Record<
+  ConflictIssue["likelihood"],
+  LikelihoodMeta
+> = {
+  high: {
+    label: "Kemungkinan besar",
+    tone: "danger",
+    rankClass: "bg-danger text-fg-inverse",
+  },
+  check: {
+    label: "Perlu dicek",
+    tone: "assumption",
+    rankClass: "bg-track text-fg-secondary",
+  },
+};

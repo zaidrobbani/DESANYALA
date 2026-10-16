@@ -10,6 +10,16 @@ import StepperNav from "../component/StepperNav";
 import ValidationPanel from "../component/ValidationPanel";
 import { useInputSimulasiContainer } from "../hooks/useInputSimulasiContainer";
 
+export const InputSimulasiHero = () => (
+  <PageHero
+    eyebrow="Simulasi · langkah 1 dari 2"
+    title="Atur skenario energi desa"
+    description="Masukkan kondisi desa, kebutuhan listrik, dan asumsi biaya. Optimizer membandingkan diesel saja dengan diesel + panel surya + baterai pada beban yang sama."
+    meta="Studi kasus demo: Kampung Yensawai, Raja Ampat · 2 × 80 kW diesel · 728,83 kWh/hari (Subekti dkk. 2024)"
+    className="mb-1"
+  />
+);
+
 const InputSimulasiContainer = () => {
   const {
     control,
@@ -40,13 +50,7 @@ const InputSimulasiContainer = () => {
 
   return (
     <>
-      <PageHero
-        eyebrow="Simulasi · langkah 1 dari 2"
-        title="Atur skenario energi desa"
-        description="Masukkan kondisi desa, kebutuhan listrik, dan asumsi biaya. Optimizer membandingkan diesel saja dengan diesel + panel surya + baterai pada beban yang sama."
-        meta="Studi kasus demo: Kampung Yensawai, Raja Ampat · 2 × 80 kW diesel · 728,83 kWh/hari (Subekti dkk. 2024)"
-        className="mb-1"
-      />
+      <InputSimulasiHero />
 
       <div className="flex items-start gap-6">
         <aside className="sticky top-[88px] hidden w-[260px] shrink-0 flex-col gap-4 lg:flex">
