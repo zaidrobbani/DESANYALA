@@ -8,9 +8,10 @@
  *   2. menurunkan progres dari waktu berjalan + status request,
  *   3. menyimpan input & respons di sessionStorage untuk halaman Hasil.
  *
- * Request yang sedang berjalan hanya hidup selama tab terbuka. Bila halaman
- * dimuat ulang saat solver berjalan, run ditandai terputus (backend tetap
- * menghitung, tetapi hasilnya tidak bisa diambil lagi).
+ * Request yang sedang berjalan hanya hidup di memori tab. Bila halaman dimuat
+ * ulang saat solver berjalan (mis. Safari iOS memuat ulang tab di latar
+ * belakang), run dilanjutkan otomatis dari input yang tersimpan
+ * (`resumeOrphanedRun`), bukan dianggap gagal.
  *
  * Setiap run mencatat sumbernya (`source`): backend, mock FE, atau mock FE
  * sebagai fallback karena backend error (lihat API_MODE di lib/env.ts).
@@ -50,6 +51,8 @@ type StoredRun = {
   error: RunError | null;
   source: RunSource;
   fallback: RunError | null;
+  /** Berapa kali run dilanjutkan setelah halaman dimuat ulang. */
+  resumed: number;
 };
 
 const STORAGE_PREFIX = "desanyala:simulation-run:";
@@ -190,6 +193,7 @@ const readRun = (id: string): StoredRun | null => {
       // Run lama (sebelum ada `source`) selalu berasal dari mock.
       source: packed.source ?? "mock",
       fallback: packed.fallback ?? null,
+      resumed: packed.resumed ?? 0,
       response:
         responses.get(id) ??
         (packed.response ? unpackResponse(packed.response) : null),
@@ -262,24 +266,8 @@ const finishRun = (
 const createRunId = () =>
   `run_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 
-export const startRun = (
-  request: SimulationRequest,
-  execute: OptimizationExecutor,
-  source: Exclude<RunSource, "mock_fallback">,
-) => {
-  const run: StoredRun = {
-    id: createRunId(),
-    request,
-    started_at: Date.now(),
-    finished_at: null,
-    status: "running",
-    response: null,
-    error: null,
-    source,
-    fallback: null,
-  };
-  saveRun(run);
-
+/** Jalankan executor untuk run yang sudah tersimpan berstatus "running". */
+const launchRun = (run: StoredRun, execute: OptimizationExecutor) => {
   const controller = new AbortController();
   controllers.set(run.id, controller);
 
@@ -289,7 +277,7 @@ export const startRun = (
     saveRun({ ...current, source: "mock_fallback", fallback: reason });
   };
 
-  execute(request, controller.signal, handleFallback)
+  execute(run.request, controller.signal, handleFallback)
     .then((response) => {
       const failure = responseFailure(response);
       finishRun(run.id, {
@@ -311,10 +299,48 @@ export const startRun = (
       });
     })
     .finally(() => {
-      controllers.delete(run.id);
+      // Hanya hapus controller milik eksekusi ini (bukan hasil resume baru).
+      if (controllers.get(run.id) === controller) controllers.delete(run.id);
     });
+};
 
+export const startRun = (
+  request: SimulationRequest,
+  execute: OptimizationExecutor,
+  source: Exclude<RunSource, "mock_fallback">,
+) => {
+  const run: StoredRun = {
+    id: createRunId(),
+    request,
+    started_at: Date.now(),
+    finished_at: null,
+    status: "running",
+    response: null,
+    error: null,
+    source,
+    fallback: null,
+    resumed: 0,
+  };
+  saveRun(run);
+  launchRun(run, execute);
   return run;
+};
+
+/**
+ * Run "running" tanpa request hidup di tab ini = halaman dimuat ulang di
+ * tengah proses. Lanjutkan dengan executor sesuai sumbernya (mis. mock bila
+ * run ini sudah fallback). Mengembalikan true bila run dilanjutkan.
+ */
+export const resumeOrphanedRun = (
+  id: string,
+  executorFor: (source: RunSource) => OptimizationExecutor,
+) => {
+  const run = readRun(id);
+  if (!run || run.status !== "running" || controllers.has(id)) return false;
+  const resumed: StoredRun = { ...run, resumed: run.resumed + 1 };
+  saveRun(resumed);
+  launchRun(resumed, executorFor(resumed.source));
+  return true;
 };
 
 const notFound = () =>
@@ -322,23 +348,6 @@ const notFound = () =>
     code: "NOT_FOUND",
     status: 404,
   });
-
-/** Run aktif yang request-nya hilang (halaman dimuat ulang) = terputus. */
-const resolveInterrupted = (run: StoredRun): StoredRun => {
-  if (run.status !== "running" || controllers.has(run.id)) return run;
-  const interrupted: StoredRun = {
-    ...run,
-    status: "failed",
-    finished_at: Date.now(),
-    error: {
-      code: "INTERRUPTED",
-      message:
-        "Koneksi ke proses optimasi terputus karena halaman dimuat ulang. Jalankan ulang dari input.",
-    },
-  };
-  saveRun(interrupted);
-  return interrupted;
-};
 
 export const cancelRun = (id: string) => {
   const run = readRun(id);
@@ -437,6 +446,12 @@ const buildLogs = (
       },
     );
   }
+  if (run.resumed > 0) {
+    logs.push({
+      level: "warning",
+      text: `! Halaman dimuat ulang saat proses berjalan; run dilanjutkan otomatis (${run.resumed}×).`,
+    });
+  }
   if (run.status === "running") {
     logs.push({
       level: "info",
@@ -484,9 +499,8 @@ const buildLogs = (
 };
 
 export const getRunProgress = (id: string, now = Date.now()) => {
-  const stored = readRun(id);
-  if (!stored) throw notFound();
-  const run = resolveInterrupted(stored);
+  const run = readRun(id);
+  if (!run) throw notFound();
 
   const { request, response } = run;
   const keys = request.optimization.scenarios.map(({ id: key }) => key);

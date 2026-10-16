@@ -5,6 +5,7 @@ import type {
   HealthResponse,
   InputValidationResponse,
   OptimizationResponse,
+  RunSource,
   SimulationCreateResponse,
   SimulationInputResponse,
   SimulationProgressResponse,
@@ -18,6 +19,7 @@ import {
   getRunProgress,
   getRunResult,
   type OptimizationExecutor,
+  resumeOrphanedRun,
   startRun,
 } from "./run-store";
 
@@ -129,23 +131,27 @@ const runBackendWithFallback: OptimizationExecutor = async (
   }
 };
 
+/** Executor per sumber run; run yang sudah fallback dilanjutkan dengan mock. */
+const executorFor = (source: RunSource): OptimizationExecutor => {
+  if (source !== "backend") return mockRunOptimization;
+  return API_MODE === "auto" ? runBackendWithFallback : RunOptimization;
+};
+
 export const CreateSimulation = async (
   payload: SimulationRequest,
 ): Promise<SimulationCreateResponse> => {
-  const run =
-    API_MODE === "mock"
-      ? startRun(payload, mockRunOptimization, "mock")
-      : startRun(
-          payload,
-          API_MODE === "auto" ? runBackendWithFallback : RunOptimization,
-          "backend",
-        );
+  const source = API_MODE === "mock" ? "mock" : "backend";
+  const run = startRun(payload, executorFor(source), source);
   return { payload: { id: run.id, status: run.status } };
 };
 
 export const GetSimulationProgress = async (
   id: string,
-): Promise<SimulationProgressResponse> => ({ payload: getRunProgress(id) });
+): Promise<SimulationProgressResponse> => {
+  // Halaman dimuat ulang di tengah run: lanjutkan, jangan dianggap gagal.
+  resumeOrphanedRun(id, executorFor);
+  return { payload: getRunProgress(id) };
+};
 
 export const CancelSimulation = async (id: string): Promise<void> => {
   cancelRun(id);
