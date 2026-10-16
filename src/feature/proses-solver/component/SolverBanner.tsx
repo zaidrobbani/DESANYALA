@@ -75,7 +75,10 @@ const resolveContent = (progress: SimulationProgress): BannerContent => {
       status === "queued"
         ? "Menunggu antrean solver"
         : `Sedang diproses: ${total} skenario`,
-    description: RUNNING_DESCRIPTION,
+    description:
+      progress.source === "backend"
+        ? RUNNING_DESCRIPTION
+        : "Mock FE menghitung semua skenario di browser dengan heuristik sederhana.",
   };
 };
 
@@ -83,8 +86,17 @@ interface SolverBannerProps {
   progress: SimulationProgress;
 }
 
+/** Penanda sumber hasil bila bukan backend (mode mock / fallback). */
+const sourceNote = ({ source, fallback }: SimulationProgress) => {
+  if (fallback) {
+    return `Backend error (${fallback.code}), run ini dilanjutkan mock FE.`;
+  }
+  return source === "mock" ? "Mode mock FE, backend tidak dipanggil." : null;
+};
+
 const SolverBanner = ({ progress }: SolverBannerProps) => {
   const content = resolveContent(progress);
+  const note = sourceNote(progress);
   const { solver } = progress;
 
   return (
@@ -93,7 +105,9 @@ const SolverBanner = ({ progress }: SolverBannerProps) => {
       iconClassName={content.iconClass}
       title={content.title}
       titleClassName={content.titleClass}
-      description={content.description}
+      description={
+        note ? `${note} ${content.description}` : content.description
+      }
       meta={
         <>
           {solver.name} · {solver.method} · {formatNumber(solver.periods)}{" "}

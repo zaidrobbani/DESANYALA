@@ -291,6 +291,14 @@ export type ValidationErrorItem = {
 /* Run lokal (dikelola run-store.ts, bukan endpoint backend)                 */
 /* ------------------------------------------------------------------------ */
 
+/**
+ * Asal hasil run: backend, mock FE (mode mock), atau mock FE karena backend
+ * error di mode auto (`fallback` berisi alasannya).
+ */
+export type RunSource = "backend" | "mock" | "mock_fallback";
+
+export type RunError = { code: string; message: string };
+
 export type SimulationStatus =
   | "queued"
   | "running"
@@ -336,7 +344,10 @@ export type SimulationProgress = {
   };
   scenarios: ScenarioProgress[];
   logs: SolverLogLine[];
-  error: { code: string; message: string } | null;
+  error: RunError | null;
+  source: RunSource;
+  /** Error backend yang memicu fallback ke mock FE. */
+  fallback: RunError | null;
 };
 
 export type SimulationCreateResponse = {
@@ -352,6 +363,8 @@ export type SimulationResult = {
   id: string;
   input: SimulationRequest;
   response: OptimizationResponse;
+  source: RunSource;
+  fallback: RunError | null;
 };
 
 export type SimulationResultResponse = {

@@ -1,6 +1,5 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { isMockApi } from "@/lib/env";
 import { getErrorMessage } from "@/lib/try-catch";
 import type { ScenarioKey } from "@/repository/simulation/dto";
 import { useGetSimulationResult } from "@/repository/simulation/query";
@@ -143,7 +142,6 @@ export const useHasilSimulasiContainer = () => {
     isSelectedUsable,
     cheapest,
     alternative,
-    isMock: isMockApi(),
     isLoading: resultQuery.isLoading && Boolean(simulationId),
     loadError,
     canRetry: Boolean(simulationId) && Boolean(resultQuery.error),

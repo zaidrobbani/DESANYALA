@@ -1,5 +1,6 @@
 /*
- * Mock backend DesaNyala — dipakai selama `isMockApi()` aktif.
+ * Mock backend DesaNyala — dipakai saat API_MODE = "mock", atau sebagai
+ * fallback saat backend error di API_MODE = "auto" (lihat lib/env.ts).
  *
  * Menghasilkan bentuk respons yang sama dengan backend
  * (POST /api/v1/optimizations & /api/v1/inputs/validate) dari input form.

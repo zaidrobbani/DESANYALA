@@ -24,7 +24,7 @@ import { useHasilSimulasiContainer } from "../hooks/useHasilSimulasiContainer";
 const LAYOUT = "grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_400px]";
 
 const DEFAULT_DESCRIPTION =
-  "Bandingkan kapasitas pembangkit, biaya energi, konsumsi diesel, dan operasi baterai dari hasil optimasi backend.";
+  "Bandingkan kapasitas pembangkit, biaya energi, konsumsi diesel, dan operasi baterai.";
 
 interface HasilSimulasiHeroProps {
   title?: string;
@@ -72,7 +72,6 @@ const HasilSimulasiContainer = () => {
     isSelectedUsable,
     cheapest,
     alternative,
-    isMock,
     isLoading,
     loadError,
     canRetry,
@@ -96,7 +95,7 @@ const HasilSimulasiContainer = () => {
     hero = (
       <HasilSimulasiHero
         title={`Hasil optimasi sistem energi${where ? ` untuk ${where}` : ""}`}
-        description={`${DEFAULT_DESCRIPTION} Periode ${formatNumber(response.period_days)} hari, ${formatNumber(response.time_step_hours)} jam per interval.`}
+        description={`${DEFAULT_DESCRIPTION} ${result.source === "backend" ? "Dihitung backend (Offgridders)" : "Dihitung mock FE, bukan Offgridders"}, periode ${formatNumber(response.period_days)} hari, ${formatNumber(response.time_step_hours)} jam per interval.`}
         aside={
           <HeroResultPanel
             label={cheapest ? "LCOE terendah" : "Status solver"}
@@ -135,7 +134,11 @@ const HasilSimulasiContainer = () => {
 
       {result && response && selected && selectedKey && (
         <>
-          <ResultStatusBanner response={response} isMock={isMock} />
+          <ResultStatusBanner
+            response={response}
+            source={result.source}
+            fallback={result.fallback}
+          />
 
           <ScenarioTabs
             response={response}

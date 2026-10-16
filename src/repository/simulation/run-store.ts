@@ -11,12 +11,17 @@
  * Request yang sedang berjalan hanya hidup selama tab terbuka. Bila halaman
  * dimuat ulang saat solver berjalan, run ditandai terputus (backend tetap
  * menghitung, tetapi hasilnya tidak bisa diambil lagi).
+ *
+ * Setiap run mencatat sumbernya (`source`): backend, mock FE, atau mock FE
+ * sebagai fallback karena backend error (lihat API_MODE di lib/env.ts).
  */
 import { ApiError } from "@/lib/try-catch";
 import { formatNumber } from "@/shared/util/number";
 import type {
   DispatchPoint,
   OptimizationResponse,
+  RunError,
+  RunSource,
   ScenarioKey,
   ScenarioProgress,
   ScenarioResult,
@@ -31,9 +36,9 @@ import type {
 export type OptimizationExecutor = (
   request: SimulationRequest,
   signal: AbortSignal,
+  /** Dipanggil saat backend gagal dan run beralih ke mock FE. */
+  onFallback: (reason: RunError) => void,
 ) => Promise<OptimizationResponse>;
-
-type RunError = { code: string; message: string };
 
 type StoredRun = {
   id: string;
@@ -43,6 +48,8 @@ type StoredRun = {
   status: SimulationStatus;
   response: OptimizationResponse | null;
   error: RunError | null;
+  source: RunSource;
+  fallback: RunError | null;
 };
 
 const STORAGE_PREFIX = "desanyala:simulation-run:";
@@ -180,6 +187,9 @@ const readRun = (id: string): StoredRun | null => {
     const packed = JSON.parse(raw) as PackedRun;
     const run: StoredRun = {
       ...packed,
+      // Run lama (sebelum ada `source`) selalu berasal dari mock.
+      source: packed.source ?? "mock",
+      fallback: packed.fallback ?? null,
       response:
         responses.get(id) ??
         (packed.response ? unpackResponse(packed.response) : null),
@@ -255,6 +265,7 @@ const createRunId = () =>
 export const startRun = (
   request: SimulationRequest,
   execute: OptimizationExecutor,
+  source: Exclude<RunSource, "mock_fallback">,
 ) => {
   const run: StoredRun = {
     id: createRunId(),
@@ -264,13 +275,21 @@ export const startRun = (
     status: "running",
     response: null,
     error: null,
+    source,
+    fallback: null,
   };
   saveRun(run);
 
   const controller = new AbortController();
   controllers.set(run.id, controller);
 
-  execute(request, controller.signal)
+  const handleFallback = (reason: RunError) => {
+    const current = readRun(run.id);
+    if (current?.status !== "running") return;
+    saveRun({ ...current, source: "mock_fallback", fallback: reason });
+  };
+
+  execute(request, controller.signal, handleFallback)
     .then((response) => {
       const failure = responseFailure(response);
       finishRun(run.id, {
@@ -349,7 +368,13 @@ export const getRunResult = (id: string): SimulationResult => {
       },
     );
   }
-  return { id: run.id, input: run.request, response: run.response };
+  return {
+    id: run.id,
+    input: run.request,
+    response: run.response,
+    source: run.source,
+    fallback: run.fallback,
+  };
 };
 
 export const getRunInput = (id: string): SimulationRequest => {
@@ -372,6 +397,15 @@ const runningProgress = (elapsed: number, expected: number) =>
 const scenarioCode = (index: number) =>
   `Skenario ${String.fromCharCode(65 + index)}`;
 
+const SOLVER_BY_SOURCE: Record<
+  RunSource,
+  Pick<SimulationProgress["solver"], "name" | "method">
+> = {
+  backend: { name: "Offgridders", method: "backend DesaNyala" },
+  mock: { name: "Mock FE", method: "heuristik di browser" },
+  mock_fallback: { name: "Mock FE", method: "fallback, backend error" },
+};
+
 const buildLogs = (
   run: StoredRun,
   periods: number,
@@ -379,19 +413,39 @@ const buildLogs = (
 ): SolverLogLine[] => {
   const keys = run.request.optimization.scenarios.map(({ id }) => id);
   const logs: SolverLogLine[] = [
-    { level: "command", text: "> POST /api/v1/optimizations" },
+    {
+      level: "command",
+      text:
+        run.source === "mock"
+          ? "> mock FE (backend tidak dipanggil)"
+          : "> POST /api/v1/optimizations",
+    },
     {
       level: "info",
       text: `Payload ${run.request.schema_version} · ${keys.length} skenario (${keys.join(", ")}) · ${run.request.project.simulation_days} hari / ${formatNumber(periods)} interval`,
     },
   ];
+  if (run.fallback) {
+    logs.push(
+      {
+        level: "error",
+        text: `Backend gagal (${run.fallback.code}): ${run.fallback.message}`,
+      },
+      {
+        level: "warning",
+        text: "! Beralih ke mock FE. Angka hasil adalah heuristik, bukan Offgridders.",
+      },
+    );
+  }
   if (run.status === "running") {
     logs.push({
       level: "info",
       text:
-        elapsed < 2
-          ? "Mengirim konfigurasi ke backend…"
-          : "Backend membentuk profil per jam dan menjalankan Offgridders…",
+        run.source !== "backend"
+          ? "Mock FE menghitung skenario di browser…"
+          : elapsed < 2
+            ? "Mengirim konfigurasi ke backend…"
+            : "Backend membentuk profil per jam dan menjalankan Offgridders…",
     });
     return logs;
   }
@@ -486,9 +540,11 @@ export const getRunProgress = (id: string, now = Date.now()) => {
     current_scenario_index: keys.length,
     total_scenarios: keys.length,
     elapsed_seconds: elapsed,
-    solver: { name: "Offgridders", method: "backend DesaNyala", periods },
+    solver: { ...SOLVER_BY_SOURCE[run.source], periods },
     scenarios,
     logs: buildLogs(run, periods, elapsed),
     error: run.error,
+    source: run.source,
+    fallback: run.fallback,
   } satisfies SimulationProgress;
 };
