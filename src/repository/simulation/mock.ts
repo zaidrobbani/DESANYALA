@@ -9,6 +9,7 @@ import { scaleLoadProfile } from "@/shared/util/load-profile";
 import { formatNumber } from "@/shared/util/number";
 import type {
   ComponentResult,
+  ConflictIssue,
   HourlyDispatch,
   LoadProfilePreset,
   ScenarioKey,
@@ -107,7 +108,13 @@ const SCENARIO_DURATION: Record<ScenarioKey, number> = {
   hybrid: 10.8,
 };
 const INFEASIBLE_AFTER_SECONDS = 2.4;
+/** Infeasible yang sudah terdeteksi saat presolve (lebih cepat). */
+const PRESOLVE_INFEASIBLE_SECONDS = 0.84;
+/** Minimum load genset (%) yang membuat hybrid infeasible di mock. */
+const HYBRID_MAX_MIN_LOAD_PCT = 60;
 const GAP_BETWEEN_SCENARIOS = 0.1;
+
+type FailureStage = "solve" | "presolve";
 
 type MockRun = {
   id: string;
@@ -117,6 +124,8 @@ type MockRun = {
   /** Skenario yang dibuat gagal (infeasible), atau null. */
   failing_scenario: ScenarioKey | null;
   failure_reason: string | null;
+  /** Tahap solver saat infeasible terdeteksi. Kosong di sesi lama. */
+  failure_stage?: FailureStage;
   /** Input saat run, dipakai untuk menyusun hasil. Kosong di sesi lama. */
   request?: SimulationRequest;
 };
@@ -150,15 +159,35 @@ const resolvePeakLoad = (request: SimulationRequest) => {
   );
 };
 
-const resolveFailure = (request: SimulationRequest) => {
+type MockFailure = {
+  scenario: ScenarioKey;
+  reason: string;
+  stage: FailureStage;
+};
+
+const HYBRID_INFEASIBLE_REASON =
+  "Skenario hybrid tidak punya solusi yang memenuhi semua batasan model.";
+
+const resolveFailure = (request: SimulationRequest): MockFailure | null => {
   const firstScenario = request.scenarios[0] ?? "baseline";
+  const hasHybrid = request.scenarios.includes("hybrid");
   if (MOCK_SOLVER_RESULT === "success") return null;
   if (MOCK_SOLVER_RESULT === "fail") {
     return {
       scenario: firstScenario,
       reason:
         "Constraint keseimbangan energi tidak terpenuhi (mode mock: fail).",
+      stage: "solve",
     };
+  }
+  if (MOCK_SOLVER_RESULT === "fail-hybrid") {
+    return hasHybrid
+      ? {
+          scenario: "hybrid",
+          reason: HYBRID_INFEASIBLE_REASON,
+          stage: "presolve",
+        }
+      : null;
   }
 
   const dieselCapacity = request.diesel.units * request.diesel.unit_capacity_kw;
@@ -169,8 +198,20 @@ const resolveFailure = (request: SimulationRequest) => {
     dieselCapacity < peak
   ) {
     return {
-      scenario: "baseline" as const,
+      scenario: "baseline",
       reason: `Beban puncak ${formatNumber(peak, 2, 2)} kW melebihi kapasitas diesel ${formatNumber(dieselCapacity)} kW, sementara batas beban tak terlayani 0 %.`,
+      stage: "solve",
+    };
+  }
+  if (
+    hasHybrid &&
+    request.max_unserved_energy_pct === 0 &&
+    request.diesel.min_load_pct >= HYBRID_MAX_MIN_LOAD_PCT
+  ) {
+    return {
+      scenario: "hybrid",
+      reason: HYBRID_INFEASIBLE_REASON,
+      stage: "presolve",
     };
   }
   return null;
@@ -186,6 +227,7 @@ export const mockCreateSimulation = async (request: SimulationRequest) => {
     scenarios: request.scenarios,
     failing_scenario: failure?.scenario ?? null,
     failure_reason: failure?.reason ?? null,
+    failure_stage: failure?.stage,
     request,
   };
   writeRun(run);
@@ -216,7 +258,26 @@ const runningLogs = (elapsed: number): SolverLogLine[] => {
 
 const formatSeconds = (seconds: number) => seconds.toFixed(1);
 
-export const buildMockProgress = (run: MockRun, now: number) => {
+/** Log HiGHS saat infeasible terdeteksi di presolve (tanpa baris perintah). */
+const presolveInfeasibleLogs = (): SolverLogLine[] => [
+  {
+    level: "info",
+    text: `Running ${SOLVER.name} ${SOLVER.version} (${SOLVER.method})`,
+  },
+  { level: "info", text: "Presolving model" },
+  { level: "info", text: "Problem status detected on presolve:" },
+  { level: "error", text: "  Infeasible" },
+  { level: "error", text: "Model   status  : Infeasible" },
+  {
+    level: "info",
+    text: `HiGHS run time  : ${PRESOLVE_INFEASIBLE_SECONDS.toFixed(2)} s`,
+  },
+];
+
+export const buildMockProgress = (
+  run: MockRun,
+  now: number,
+): SimulationProgress => {
   const endTime = run.cancelled_at ?? now;
   const elapsed = Math.max(0, (endTime - run.started_at) / 1000);
 
@@ -251,9 +312,12 @@ export const buildMockProgress = (run: MockRun, now: number) => {
     }
 
     const willFail = run.failing_scenario === key;
-    const duration = willFail
-      ? INFEASIBLE_AFTER_SECONDS
-      : SCENARIO_DURATION[key];
+    const failsAtPresolve = willFail && run.failure_stage === "presolve";
+    const duration = failsAtPresolve
+      ? PRESOLVE_INFEASIBLE_SECONDS
+      : willFail
+        ? INFEASIBLE_AFTER_SECONDS
+        : SCENARIO_DURATION[key];
     const local = elapsed - cursor;
 
     logs.push({ level: "command", text: `> run_scenario("${key}")` });
@@ -274,13 +338,17 @@ export const buildMockProgress = (run: MockRun, now: number) => {
     }
 
     if (willFail) {
-      logs.push(...runningLogs(duration));
-      logs.push({
-        level: "error",
-        text: `Model status  : Infeasible   (${formatSeconds(duration)} s)`,
-      });
-      if (run.failure_reason) {
-        logs.push({ level: "error", text: run.failure_reason });
+      if (failsAtPresolve) {
+        logs.push(...presolveInfeasibleLogs());
+      } else {
+        logs.push(...runningLogs(duration));
+        logs.push({
+          level: "error",
+          text: `Model status  : Infeasible   (${formatSeconds(duration)} s)`,
+        });
+        if (run.failure_reason) {
+          logs.push({ level: "error", text: run.failure_reason });
+        }
       }
       scenarios.push({
         ...base,
@@ -323,7 +391,7 @@ export const buildMockProgress = (run: MockRun, now: number) => {
     scenarios,
     logs,
     error,
-  } satisfies SimulationProgress;
+  };
 };
 
 export const mockGetSimulationProgress = async (id: string) => {
@@ -449,6 +517,44 @@ const buildDispatch = (key: ScenarioKey, profile: number[]): HourlyDispatch[] =>
     };
   });
 
+/** Diagnosis parameter yang diduga bentrok saat hybrid infeasible. */
+const buildConflictIssues = (
+  request: SimulationRequest,
+  profile: number[],
+): ConflictIssue[] => {
+  const { min_load_pct, unit_capacity_kw } = request.diesel;
+  const minLoadKw = (min_load_pct / 100) * unit_capacity_kw;
+  const nightLoadKw = Math.min(...profile);
+  const issues: ConflictIssue[] = [];
+
+  if (min_load_pct >= HYBRID_MAX_MIN_LOAD_PCT) {
+    issues.push({
+      input_path: "diesel.min_load_pct",
+      label: "Minimum load per unit",
+      likelihood: "high",
+      current_value: `${formatNumber(min_load_pct)} % (${formatNumber(minLoadKw, 1)} kW per unit)`,
+      explanation: `Beban malam hanya ${formatNumber(nightLoadKw, 0)} kW. Genset yang menyala wajib minimal ${formatNumber(minLoadKw, 1)} kW, sementara kelebihan daya tidak punya tempat.`,
+      suggestion:
+        "Periksa nilai ini di bagian 3 Parameter sistem. Asumsi demo memakai 30 %.",
+    });
+  }
+  if (request.max_unserved_energy_pct === 0) {
+    const isFirst = issues.length === 0;
+    issues.push({
+      input_path: "max_unserved_energy_pct",
+      label: "Batas beban tak terlayani",
+      likelihood: isFirst ? "high" : "check",
+      current_value: "0 % energi/tahun",
+      explanation:
+        "Tidak ada toleransi pemadaman, sehingga model tidak bisa melepas beban.",
+      suggestion: isFirst
+        ? "Coba beri toleransi kecil, mis. 1 %, lalu jalankan ulang."
+        : "Biarkan 0 % jika layanan penuh wajib. Ubah nomor 1 lebih dulu.",
+    });
+  }
+  return issues;
+};
+
 const buildMockResult = (
   run: MockRun,
   request: SimulationRequest,
@@ -457,7 +563,10 @@ const buildMockResult = (
   const servedPerYear = dailyEnergy * 365;
   const sfc = request.diesel.specific_consumption_l_per_kwh;
 
-  const scenarios = run.scenarios.map(
+  const failedKey = run.failing_scenario;
+  const solvedKeys = run.scenarios.filter((key) => key !== failedKey);
+
+  const scenarios = solvedKeys.map(
     (key): ScenarioResult => ({
       key,
       label: SCENARIO_LABEL[key],
@@ -479,7 +588,7 @@ const buildMockResult = (
     request.battery.max_capacity_kwh,
   );
   const { economics } = request;
-  const components: ComponentResult[] = [
+  const hybridComponents: ComponentResult[] = [
     {
       key: "pv",
       units: 1,
@@ -526,8 +635,20 @@ const buildMockResult = (
     recommended_scenario: cheapest?.key ?? "baseline",
     solver: { ...SOLVER, model_status: "Optimal" },
     energy_balance_max_error_kwh: 0,
-    components,
+    components: solvedKeys.includes("hybrid") ? hybridComponents : [],
     scenarios,
+    failed_scenario: failedKey
+      ? {
+          key: failedKey,
+          model_status: "Infeasible",
+          detected_at: run.failure_stage === "presolve" ? "presolve" : null,
+          logs: [
+            { level: "command", text: `> run_scenario("${failedKey}")` },
+            ...presolveInfeasibleLogs(),
+          ],
+          issues: buildConflictIssues(request, profile),
+        }
+      : null,
     input: request,
   };
 };
@@ -541,10 +662,15 @@ export const mockGetSimulationResult = async (id: string) => {
       status: 404,
     });
   }
-  const { status } = buildMockProgress(run, Date.now());
-  if (status !== "completed") {
+  const progress = buildMockProgress(run, Date.now());
+  // Hasil tersedia bila selesai, atau gagal tapi ada skenario yang optimal.
+  const hasResult =
+    progress.status === "completed" ||
+    (progress.status === "failed" &&
+      progress.scenarios.some((scenario) => scenario.status === "optimal"));
+  if (!hasResult) {
     throw new ApiError(
-      status === "running" || status === "queued"
+      progress.status === "running" || progress.status === "queued"
         ? "Solver belum selesai. Tunggu hingga semua skenario optimal."
         : "Simulasi ini tidak selesai, jadi belum ada hasil.",
       { code: "NOT_READY", status: 409 },
@@ -557,4 +683,16 @@ export const mockGetSimulationResult = async (id: string) => {
     );
   }
   return { payload: buildMockResult(run, run.request) };
+};
+
+export const mockGetSimulationInput = async (id: string) => {
+  await delay(200);
+  const request = readRun(id)?.request;
+  if (!request) {
+    throw new ApiError(
+      "Input run ini tidak ditemukan atau sesi sudah berakhir.",
+      { code: "NOT_FOUND", status: 404 },
+    );
+  }
+  return { payload: request };
 };

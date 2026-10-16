@@ -10,6 +10,7 @@ interface ResultSolverBannerProps {
 
 const ResultSolverBanner = ({ result }: ResultSolverBannerProps) => {
   const { solver, scenarios } = result;
+  const total = scenarios.length + (result.failed_scenario ? 1 : 0);
   const durations = scenarios
     .map(
       (scenario) =>
@@ -21,7 +22,7 @@ const ResultSolverBanner = ({ result }: ResultSolverBannerProps) => {
     <StatusBanner
       icon={IconCircleCheck}
       iconClassName="text-success"
-      title={`Solver: ${solver.model_status.toLowerCase()} (${scenarios.length} dari ${scenarios.length} skenario)`}
+      title={`Solver: ${solver.model_status.toLowerCase()} (${scenarios.length} dari ${total} skenario)`}
       titleClassName="text-success"
       description={`${durations}. Neraca energi lolos di ${formatNumber(solver.periods)} jam (selisih maks ${formatNumber(result.energy_balance_max_error_kwh, 2, 2)} kWh).`}
       meta={`${solver.name} ${solver.version} · Model status: ${solver.model_status} · ${solver.method} · ${formatNumber(solver.periods)} periode`}

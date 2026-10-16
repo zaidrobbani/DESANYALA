@@ -12,7 +12,8 @@ export const isMockApi = () =>
 
 /**
  * Paksa hasil mock solver: "auto" (default, berdasarkan input),
- * "success", atau "fail".
+ * "success", "fail" (skenario pertama infeasible), atau "fail-hybrid"
+ * (baseline optimal, hybrid infeasible).
  */
 export const MOCK_SOLVER_RESULT = (process.env.NEXT_PUBLIC_MOCK_SOLVER_RESULT ??
-  "auto") as "auto" | "success" | "fail";
+  "auto") as "auto" | "success" | "fail" | "fail-hybrid";

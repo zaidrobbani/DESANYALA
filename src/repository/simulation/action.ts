@@ -4,6 +4,7 @@ import { tryCatch } from "@/lib/try-catch";
 import type {
   LoadProfilePresetListResponse,
   SimulationCreateResponse,
+  SimulationInputResponse,
   SimulationProgressResponse,
   SimulationRequest,
   SimulationResultResponse,
@@ -12,6 +13,7 @@ import {
   mockCancelSimulation,
   mockCreateSimulation,
   mockGetLoadProfilePresets,
+  mockGetSimulationInput,
   mockGetSimulationProgress,
   mockGetSimulationResult,
 } from "./mock";
@@ -102,6 +104,24 @@ export const GetSimulationResult = async (
 
   if (error || !data?.data) {
     throw error ?? new Error("Gagal memuat hasil simulasi");
+  }
+
+  return data.data;
+};
+
+export const GetSimulationInput = async (
+  id: string,
+): Promise<SimulationInputResponse> => {
+  if (isMockApi()) return mockGetSimulationInput(id);
+
+  const { data, error } = await tryCatch(
+    axiosPublic.get<SimulationInputResponse>(
+      `/simulations/${encodeURIComponent(id)}/input`,
+    ),
+  );
+
+  if (error || !data?.data) {
+    throw error ?? new Error("Gagal memuat input simulasi");
   }
 
   return data.data;

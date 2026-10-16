@@ -1,15 +1,25 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/try-catch";
-import type { SimulationRequest } from "@/repository/simulation/dto";
+import type {
+  SimulationInputPath,
+  SimulationRequest,
+} from "@/repository/simulation/dto";
 import {
   useGetLoadProfilePresets,
   useGetSimulationResult,
 } from "@/repository/simulation/query";
 import { ROUTES } from "@/shared/constant/routes";
 import { formatNumber } from "@/shared/util/number";
+import { INPUT_FIELD_LOCATION } from "../data";
 import { buildResultCsv, downloadTextFile } from "../util/build-result-csv";
 import { summarizeResult } from "../util/summarize-result";
+
+/**
+ * comparison = Baseline vs Hybrid (frame 02), infeasible = diagnosis
+ * (frame 04), baseline = diesel saja (hybrid infeasible / tidak dijalankan).
+ */
+export type HasilView = "comparison" | "infeasible" | "baseline";
 
 const toFileSlug = (text: string) =>
   text
@@ -29,10 +39,20 @@ export const useHasilSimulasiContainer = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const simulationId = searchParams.get("id") ?? "";
+  const wantsBaseline = searchParams.get("view") === "baseline";
 
   const resultQuery = useGetSimulationResult(simulationId);
   const result = resultQuery.data?.payload ?? null;
   const summary = result ? summarizeResult(result) : null;
+  const baseline = result?.scenarios.find((s) => s.key === "baseline");
+
+  let view: HasilView | null = null;
+  if (result) {
+    if (wantsBaseline && baseline) view = "baseline";
+    else if (result.failed_scenario) view = "infeasible";
+    else if (summary) view = "comparison";
+    else if (baseline) view = "baseline";
+  }
 
   const presets = useGetLoadProfilePresets().data?.payload ?? [];
   const load = result?.input.load;
@@ -49,8 +69,8 @@ export const useHasilSimulasiContainer = () => {
     ? "ID simulasi tidak ada di URL. Jalankan optimasi dari halaman input."
     : resultQuery.error
       ? getErrorMessage(resultQuery.error, "Gagal memuat hasil simulasi")
-      : result && !summary
-        ? "Halaman hasil membandingkan Baseline dan Hybrid. Aktifkan kedua skenario di input lalu jalankan ulang."
+      : result && !view
+        ? "Halaman hasil butuh skenario Baseline sebagai pembanding. Aktifkan Baseline di input lalu jalankan ulang."
         : null;
 
   const handleDownloadCsv = () => {
@@ -66,15 +86,36 @@ export const useHasilSimulasiContainer = () => {
     }
   };
 
-  // Form input belum menyimpan nilai run sebelumnya, jadi "Kembali ke input"
-  // dan "Jalankan simulasi baru" sama-sama membuka input dengan nilai default.
+  /** Buka input yang terisi nilai run ini. */
   const handleBackToInput = () => {
+    router.push(
+      simulationId ? ROUTES.simulasiDari(simulationId) : ROUTES.simulasi,
+    );
+  };
+
+  const handleNewSimulation = () => {
     router.push(ROUTES.simulasi);
   };
 
+  const handleEditField = (path: SimulationInputPath) => {
+    router.push(
+      ROUTES.simulasiDari(simulationId, INPUT_FIELD_LOCATION[path].field),
+    );
+  };
+
+  const handleViewBaseline = () => {
+    router.push(ROUTES.simulasiHasil(simulationId, "baseline"));
+  };
+
+  const handleBackToDiagnosis = () => {
+    router.push(ROUTES.simulasiHasil(simulationId));
+  };
+
   return {
+    view,
     result,
     summary,
+    baseline,
     loadProfileLabel,
     isLoading: resultQuery.isLoading && Boolean(simulationId),
     loadError,
@@ -82,5 +123,9 @@ export const useHasilSimulasiContainer = () => {
     retry: () => resultQuery.refetch(),
     handleDownloadCsv,
     handleBackToInput,
+    handleNewSimulation,
+    handleEditField,
+    handleViewBaseline,
+    handleBackToDiagnosis,
   };
 };

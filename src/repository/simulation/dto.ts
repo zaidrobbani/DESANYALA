@@ -7,6 +7,7 @@
  *   GET  /simulations/:id/progress  -> SimulationProgressResponse
  *   POST /simulations/:id/cancel    -> 204
  *   GET  /simulations/:id/result    -> SimulationResultResponse
+ *   GET  /simulations/:id/input     -> SimulationInputResponse
  */
 
 export type ScenarioKey = "baseline" | "hybrid";
@@ -191,20 +192,61 @@ export type ComponentResult = {
   energy_share_pct: number | null;
 };
 
+/** Path field di `SimulationRequest` yang disebut di diagnosis. */
+export type SimulationInputPath =
+  | "diesel.units"
+  | "diesel.unit_capacity_kw"
+  | "diesel.min_load_pct"
+  | "pv.max_capacity_kwp"
+  | "battery.max_capacity_kwh"
+  | "battery.min_soc_pct"
+  | "max_unserved_energy_pct";
+
+/** Parameter input yang diduga membuat model infeasible. */
+export type ConflictIssue = {
+  input_path: SimulationInputPath;
+  label: string;
+  /** high = "Kemungkinan besar", check = "Perlu dicek". */
+  likelihood: "high" | "check";
+  /** Nilai saat run, sudah diformat (mis. "90 % (72 kW per unit)"). */
+  current_value: string;
+  explanation: string;
+  suggestion: string;
+};
+
+/** Skenario yang tidak menemukan solusi. Angkanya sengaja tidak dikirim. */
+export type ScenarioFailure = {
+  key: ScenarioKey;
+  model_status: string;
+  /** Tahap solver saat masalah terdeteksi, mis. "presolve". */
+  detected_at: string | null;
+  /** Log solver skenario ini apa adanya. */
+  logs: SolverLogLine[];
+  /** Urut dari paling mungkin. */
+  issues: ConflictIssue[];
+};
+
 export type SimulationResult = {
   id: string;
-  /** Skenario dengan NPC terendah. */
+  /** Skenario optimal dengan NPC terendah. */
   recommended_scenario: ScenarioKey;
   solver: SimulationProgress["solver"] & { model_status: string };
   /** Selisih maksimum neraca energi di seluruh periode (kWh). */
   energy_balance_max_error_kwh: number;
-  /** Konfigurasi optimal skenario hybrid. */
+  /** Konfigurasi optimal skenario hybrid (kosong bila hybrid tidak optimal). */
   components: ComponentResult[];
+  /** Hanya skenario yang optimal. */
   scenarios: ScenarioResult[];
+  /** Skenario yang infeasible, atau null bila semua optimal. */
+  failed_scenario: ScenarioFailure | null;
   /** Input yang dipakai saat run (dikembalikan apa adanya). */
   input: SimulationRequest;
 };
 
 export type SimulationResultResponse = {
   payload: SimulationResult;
+};
+
+export type SimulationInputResponse = {
+  payload: SimulationRequest;
 };

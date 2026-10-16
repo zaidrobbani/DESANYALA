@@ -36,13 +36,19 @@ const resolveContent = (progress: SimulationProgress): BannerContent => {
   }
 
   if (status === "failed") {
+    const message =
+      progress.error?.message ?? "Solver berhenti karena terjadi kesalahan.";
+    const hasPartialResult = progress.scenarios.some(
+      (scenario) => scenario.status === "optimal",
+    );
     return {
       icon: IconAlertTriangle,
       iconClass: "text-danger",
       titleClass: "text-danger",
       title: `Optimasi gagal pada ${scenarioCount}`,
-      description:
-        progress.error?.message ?? "Solver berhenti karena terjadi kesalahan.",
+      description: hasPartialResult
+        ? `${message} Mengalihkan ke halaman Hasil untuk diagnosis…`
+        : message,
     };
   }
 

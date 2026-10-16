@@ -51,11 +51,14 @@ const SupplyDonut = ({ servedPct }: { servedPct: number }) => {
 interface KecukupanSectionProps {
   scenario: ScenarioResult;
   maxUnservedPct: number;
+  /** Nomor section di judul, mis. 5 -> "5. Kecukupan pasokan". */
+  number?: number;
 }
 
 const KecukupanSection = ({
   scenario,
   maxUnservedPct,
+  number,
 }: KecukupanSectionProps) => {
   const unserved = scenario.unserved_energy_pct;
   const withinLimit = unserved <= maxUnservedPct;
@@ -63,7 +66,7 @@ const KecukupanSection = ({
   return (
     <SectionCard
       icon={IconShieldCheck}
-      title="5. Kecukupan pasokan"
+      title={`${number ? `${number}. ` : ""}Kecukupan pasokan`}
       description="Persentase kebutuhan energi yang terpenuhi."
     >
       <div className="flex items-center gap-6">

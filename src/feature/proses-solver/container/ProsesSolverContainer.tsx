@@ -3,10 +3,10 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import LoadErrorPanel from "@/shared/component/LoadErrorPanel";
 import PageHero from "@/shared/component/PageHero";
+import SolverLogPanel from "@/shared/component/SolverLogPanel";
 import ScenarioProgressPanel from "../component/ScenarioProgressPanel";
 import SolverBanner from "../component/SolverBanner";
 import SolverFooter from "../component/SolverFooter";
-import SolverLogPanel from "../component/SolverLogPanel";
 import { useProsesSolverContainer } from "../hooks/useProsesSolverContainer";
 
 export const ProsesSolverHero = () => (
@@ -32,6 +32,7 @@ const ProsesSolverContainer = () => {
     isLoading,
     loadError,
     retry,
+    canViewResult,
     isCancelling,
     handleCancel,
     handleBackToInput,
@@ -60,6 +61,7 @@ const ProsesSolverContainer = () => {
           <SolverLogPanel logs={progress.logs} />
           <SolverFooter
             status={progress.status}
+            canViewResult={canViewResult}
             isCancelling={isCancelling}
             onCancel={handleCancel}
             onBackToInput={handleBackToInput}
