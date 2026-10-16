@@ -10,15 +10,16 @@ Desain: [Figma DESANYALA](https://www.figma.com/design/fSuDUVYlm7vOzb3jd3AdWP/DE
 | --- | --- | --- | --- |
 | Input simulasi (7 card, kontrak `desanyala.input.v1`) | `/simulasi` | 01, 01b + `desanyala_input_cards.html` | Selesai |
 | Proses solver (berjalan, selesai, gagal) | `/simulasi/proses?id=` | 03, 03b | Selesai |
-| Hasil simulasi | `/simulasi/hasil?id=` | 02, 02b–d, 04 | Placeholder (di luar scope) |
+| Hasil optimasi (KPI, operasi energi, perbandingan, kapasitas, validasi, ekspor) | `/simulasi/hasil?id=&skenario=` | 02 + `desanyala_output_dashboard.html` | Selesai |
+| Hasil infeasible/error (diagnosis per skenario) | `/simulasi/hasil?id=&skenario=` | 04 | Selesai |
 
 `/` sementara di-redirect ke `/simulasi` karena halaman Beranda belum di-slice.
 
 ### Mencoba alur demo (mock API)
 
-1. Buka `/simulasi`, isi **Nama proyek** dan **Lokasi administratif** (wajib), lalu klik **Jalankan optimasi**. Ketiga skenario selesai *optimal* dalam ±21 detik, lalu halaman pindah otomatis ke Hasil.
-2. **Skenario gagal (frame 03b):** ubah *Kapasitas per unit* genset menjadi `1` (2 kW < daya terpasang 2,65 kW) lalu jalankan. Diesel-only akan *infeasible* dan skenario berikutnya dilewati. Cara lain: set `NEXT_PUBLIC_MOCK_SOLVER_RESULT=fail`.
-3. Tombol **Batalkan** menghentikan solver yang sedang berjalan.
+1. Buka `/simulasi`, isi **Nama proyek** dan **Lokasi administratif** (wajib), lalu klik **Jalankan optimasi**. Ketiga skenario selesai dalam ±10 detik, lalu halaman pindah otomatis ke Hasil.
+2. **Skenario gagal:** ubah *Jumlah unit genset* menjadi `1` dan *Kapasitas per unit* menjadi `1` (1 kW < daya terpasang 2,65 kW) lalu jalankan. Diesel-only akan *infeasible*; tab-nya menampilkan diagnosis, pesan backend, dan tombol **Ubah di input** yang membuka form terisi nilai run tersebut (`/simulasi?dari=<id>&fokus=<field>`). Cara lain: `NEXT_PUBLIC_MOCK_SOLVER_RESULT=fail` / `fail-partial` / `error`.
+3. Tombol **Batalkan** menghentikan request yang sedang berjalan.
 
 ## Tech stack
 
@@ -43,9 +44,10 @@ bun run dev          # http://localhost:3000
 
 | Variabel | Keterangan |
 | --- | --- |
-| `NEXT_PUBLIC_BASE_API_URL` | Base URL backend. Kosong = mock API otomatis aktif. |
+| `NEXT_PUBLIC_BASE_API_URL` | Base URL backend, mis. `https://desa-nyala-backend.vercel.app`. Kosong = mock API otomatis aktif. |
 | `NEXT_PUBLIC_USE_MOCK_API` | `true` untuk memaksa mock walau base URL terisi. |
-| `NEXT_PUBLIC_MOCK_SOLVER_RESULT` | `auto` / `success` / `fail`. `auto` membuat diesel-only *infeasible* bila kapasitas genset (unit × kW) < total daya terpasang peralatan dan kekurangan listrik tidak diizinkan. |
+| `NEXT_PUBLIC_MOCK_SOLVER_RESULT` | `auto` / `success` / `fail` / `fail-partial` / `error`. `auto` membuat diesel-only *infeasible* bila genset eksisting (unit × kW) < total daya terpasang peralatan dan kekurangan listrik tidak diizinkan. |
+| `NEXT_PUBLIC_OPTIMIZATION_TIMEOUT_MS` | Batas waktu `POST /api/v1/optimizations` (default 900000 = 15 menit). |
 
 ## Scripts
 
@@ -122,20 +124,19 @@ Semua berjalan di hook `commit-msg`:
 
 Format commit: [Conventional Commits](https://www.conventionalcommits.org/) dengan subject huruf kecil, contoh `feat: slicing halaman input simulasi`. Type yang diizinkan: `feat`, `fix`, `chore`, `docs`, `style`, `refactor`, `test`, `perf`, `ci`, `build`, `revert`.
 
-## Kontrak API (usulan FE)
+## Integrasi backend
 
-Lihat `src/repository/simulation/dto.ts`.
+Backend: [dindawijayanto/desa-nyala-backend](https://github.com/dindawijayanto/desa-nyala-backend) (FastAPI + adapter Offgridders). Tipe ada di `src/repository/simulation/dto.ts`.
 
 ```
-POST /simulations                (body: desanyala.input.v1)
-GET  /simulations/:id/progress   (di-poll tiap 1 detik)
-POST /simulations/:id/cancel
+GET  /health                     status API + engine
+POST /api/v1/inputs/validate     validasi kontrak + estimasi energi (dipanggil sebelum optimasi)
+POST /api/v1/optimizations       jalankan semua skenario, sinkron -> OptimizationResponse
 ```
 
-Request body `POST /simulations` mengikuti kontrak **`desanyala.input.v1`** dari `desanyala_input_cards.html` / `desanyala_variable_names.txt` (sama dengan `buildConfig()` di HTML referensi):
-
-- Nama field form = JSON path kontrak (mis. `pv.capex_per_kwp`, `demand.loads.0.power_w`), dan atribut `id` input = HTML ID di referensi (mis. `pvCapex`). Pemetaan ada di `src/feature/input-simulasi/data.ts`.
-- Persentase diisi 0..100 di UI dan dikirim sebagai pecahan 0..1. Field konstan (`schema_version`, `time_step_hours`, `profile_generation_method`, `hourly_profile_source`, `unit_commitment_model`, `solver_configuration`, `notes`) diisi oleh mapper `src/feature/input-simulasi/util/to-simulation-request.ts`.
-- Kontrak ini format DesaNyala, **bukan** workbook native Offgridders. Profil beban dan profil PV per jam belum dibuat FE; backend/adapter yang membentuknya.
-
-Respons dibungkus `{ payload: ... }`. Selama `NEXT_PUBLIC_BASE_API_URL` kosong, semua call dijawab oleh `src/repository/simulation/mock.ts`. State run disimpan di `sessionStorage` sehingga halaman proses tetap jalan setelah refresh.
+- **Request** = kontrak **`desanyala.input.v1`** (`desanyala_input_cards.html` / `desanyala_variable_names.txt`, sama dengan `buildConfig()`). Nama field form = JSON path (mis. `pv.capex_per_kwp`), atribut `id` input = HTML ID referensi (mis. `pvCapex`). Persentase diisi 0..100 di UI dan dikirim sebagai pecahan 0..1 oleh `src/feature/input-simulasi/util/to-simulation-request.ts`.
+- **Response** = `OptimizationResponse` (`desanyala_output_variable_names.txt`): `scenario_results[]` berisi `metrics`, `capacities`, `validation`, dan `dispatch[]` per jam.
+- **Validasi** di `src/schemas/simulation/simulation.schema.ts` mengikuti Pydantic backend (`app/schemas/input.py`) plus penolakan adapter: eskalasi harga diesel harus 0, `fuel_model=curve` dan objektif `fuel_consumption` belum didukung, skenario PV + diesel + baterai butuh baterai aktif, `max_unmet ≤ 1 − target`. Error 422 dari backend dipetakan ke field form terkait.
+- **Run lokal** (`src/repository/simulation/run-store.ts`): backend tidak punya endpoint progres/batal/hasil per id, jadi FE membuat id run sendiri, menjalankan request di latar belakang, menurunkan progres dari waktu berjalan, dan menyimpan input + respons di `sessionStorage` (dispatch disimpan per kolom). Refresh saat solver berjalan menandai run *terputus*.
+- Selama mock aktif, `src/repository/simulation/mock.ts` menghasilkan respons berbentuk sama dari heuristik sederhana (bukan Offgridders).
+- CORS backend saat ini hanya mengizinkan `http://localhost:3000` (lihat `DESANYALA_CORS_ORIGINS` di backend); domain deploy FE perlu ditambahkan di sana.

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { parseIdNumber } from "@/shared/util/number";
+import { formatNumber, parseIdNumber } from "@/shared/util/number";
 
 /*
  * Struktur & nama field form = JSON path kontrak `desanyala.input.v1`
@@ -11,7 +11,21 @@ import { parseIdNumber } from "@/shared/util/number";
  * Field `*_fraction`, `*_efficiency`, `*_factor`, `discount_rate`, dan
  * `fuel_price_escalation_annual` diisi dalam persen (0..100) di UI, lalu
  * dibagi 100 oleh mapper `toSimulationRequest`.
+ *
+ * Batas validasi mengikuti model Pydantic backend (app/schemas/input.py) dan
+ * penolakan adapter Offgridders (app/services/offgridders_adapter.py), supaya
+ * request yang lolos form tidak ditolak backend dengan 422.
  */
+
+/** Pesan untuk opsi referensi yang belum didukung engine backend. */
+export const BACKEND_UNSUPPORTED = {
+  fuelCurve:
+    "Kurva konsumsi bahan bakar belum didukung backend. Pilih asumsi atau masukkan efisiensi.",
+  fuelEscalation:
+    "Backend belum mendukung eskalasi harga diesel selain 0 (perhitungan Offgridders masih bermasalah).",
+  fuelObjective:
+    "Objektif konsumsi diesel minimum belum tersedia di backend. Pilih biaya tahunan sistem minimum.",
+} as const;
 
 export const LOAD_CATEGORIES = [
   "Rumah tangga",
@@ -138,7 +152,11 @@ export const projectSchema = z
 export const demandLoadSchema = z
   .object({
     category: z.enum(LOAD_CATEGORIES),
-    device: z.string().trim().min(1, "Nama peralatan wajib diisi"),
+    device: z
+      .string()
+      .trim()
+      .min(1, "Nama peralatan wajib diisi")
+      .max(120, "Nama peralatan maksimal 120 karakter"),
     quantity: z.string(),
     power_w: z.string(),
     hours_per_day: z.string(),
@@ -188,17 +206,33 @@ export const pvSchema = z
           ? { label: "Kapasitas PV tetap", min: 0 }
           : undefined,
       capacity_min_kwp: { label: "Kapasitas minimum", min: 0 },
-      capacity_max_kwp: { label: "Kapasitas maksimum", min: 0 },
+      capacity_max_kwp: { label: "Kapasitas maksimum", gt: 0 },
       capex_per_kwp: { label: "Investasi PV", min: 0 },
       opex_annual_per_kwp: { label: "Biaya O&M PV", min: 0 },
       lifetime_years: lifetime("Umur pakai PV"),
     });
-    const { capacity_min_kwp: min, capacity_max_kwp: max } = values;
+    const {
+      capacity_min_kwp: min,
+      capacity_max_kwp: max,
+      fixed_capacity_kwp: fixed,
+    } = values;
     if (min !== undefined && max !== undefined && min > max) {
       issue(
         ctx,
         "capacity_max_kwp",
         "Kapasitas maksimum tidak boleh lebih kecil dari minimum",
+      );
+    } else if (
+      data.capacity_mode === "fixed" &&
+      fixed !== undefined &&
+      min !== undefined &&
+      max !== undefined &&
+      (fixed < min || fixed > max)
+    ) {
+      issue(
+        ctx,
+        "fixed_capacity_kwp",
+        "Kapasitas tetap harus di antara kapasitas minimum dan maksimum",
       );
     }
   });
@@ -227,15 +261,15 @@ export const generatorsSchema = z
       rated_power_each_kw: { label: "Kapasitas per unit", gt: 0 },
       min_loading_fraction: percent("Beban minimum"),
       max_loading_fraction: percent("Beban maksimum", 1),
-      fuel_price_per_liter: { label: "Harga diesel", min: 0 },
-      efficiency_fraction:
-        data.fuel_model === "curve"
-          ? undefined
-          : percent("Efisiensi genset", 1),
+      fuel_price_per_liter: { label: "Harga diesel", gt: 0 },
+      efficiency_fraction: percent("Efisiensi genset", 1),
       capex_per_kw: { label: "Investasi genset", min: 0 },
       opex_annual_per_unit: { label: "O&M genset", min: 0 },
       lifetime_years: lifetime("Umur pakai genset"),
     });
+    if (data.fuel_model === "curve") {
+      issue(ctx, "fuel_model", BACKEND_UNSUPPORTED.fuelCurve);
+    }
     const { min_loading_fraction: min, max_loading_fraction: max } = values;
     if (min !== undefined && max !== undefined && min > max) {
       issue(
@@ -321,11 +355,19 @@ export const economicsSchema = z
     additional_project_cost: z.string(),
   })
   .superRefine((data, ctx) => {
-    checkNumbers(ctx, data, {
+    const values = checkNumbers(ctx, data, {
       discount_rate: percent("Tingkat diskonto"),
       fuel_price_escalation_annual: percent("Perubahan harga diesel"),
       additional_project_cost: { label: "Biaya proyek tambahan", min: 0 },
     });
+    const escalation = values.fuel_price_escalation_annual;
+    if (escalation !== undefined && escalation !== 0) {
+      issue(
+        ctx,
+        "fuel_price_escalation_annual",
+        BACKEND_UNSUPPORTED.fuelEscalation,
+      );
+    }
   });
 
 /* ------------------------------------------------------------------------ */
@@ -340,22 +382,47 @@ export const reliabilitySchema = z
     reserve_margin_fraction: z.string(),
   })
   .superRefine((data, ctx) => {
-    checkNumbers(ctx, data, {
-      target_supply_fraction: percent("Target pemenuhan kebutuhan"),
+    const values = checkNumbers(ctx, data, {
+      target_supply_fraction: {
+        label: "Target pemenuhan kebutuhan",
+        gt: 0,
+        max: 100,
+      },
       max_unmet_energy_fraction:
         data.shortage_policy === "bounded"
           ? percent("Maksimum energi tak terpenuhi")
           : undefined,
       reserve_margin_fraction: percent("Cadangan daya"),
     });
+    const { target_supply_fraction: target, max_unmet_energy_fraction: unmet } =
+      values;
+    // Backend: max_unmet_energy_fraction <= 1 - target_supply_fraction.
+    if (
+      data.shortage_policy === "bounded" &&
+      target !== undefined &&
+      unmet !== undefined &&
+      unmet > 100 - target + 1e-9
+    ) {
+      issue(
+        ctx,
+        "max_unmet_energy_fraction",
+        `Maksimum energi tak terpenuhi tidak boleh melebihi ${formatNumber(100 - target, 2)} % (100 % − target pemenuhan)`,
+      );
+    }
   });
 
-export const optimizationSchema = z.object({
-  objective: z.enum(["annualized_cost", "fuel_consumption"]),
-  scenarios: z
-    .array(z.enum(SCENARIO_IDS))
-    .min(1, "Pilih minimal satu skenario"),
-});
+export const optimizationSchema = z
+  .object({
+    objective: z.enum(["annualized_cost", "fuel_consumption"]),
+    scenarios: z
+      .array(z.enum(SCENARIO_IDS))
+      .min(1, "Pilih minimal satu skenario"),
+  })
+  .superRefine((data, ctx) => {
+    if (data.objective === "fuel_consumption") {
+      issue(ctx, "objective", BACKEND_UNSUPPORTED.fuelObjective);
+    }
+  });
 
 /* ------------------------------------------------------------------------ */
 
@@ -371,14 +438,24 @@ export const simulationFormSchema = z
     optimization: optimizationSchema,
   })
   .superRefine((data, ctx) => {
-    const needsPv = data.optimization.scenarios.some(
-      (id) => id !== "diesel_only",
-    );
+    const { scenarios } = data.optimization;
+    const needsPv = scenarios.some((id) => id !== "diesel_only");
     if (needsPv && !data.pv.enabled) {
       ctx.addIssue({
         code: "custom",
         path: ["optimization", "scenarios"],
         message: "Skenario dengan PV butuh panel surya yang aktif (card 03)",
+      });
+    } else if (
+      scenarios.includes("pv_diesel_battery") &&
+      !data.battery.enabled
+    ) {
+      // Backend menolak pv_diesel_battery bila battery.enabled = false.
+      ctx.addIssue({
+        code: "custom",
+        path: ["optimization", "scenarios"],
+        message:
+          "Skenario PV + diesel + baterai butuh baterai yang aktif (card 05)",
       });
     }
   });

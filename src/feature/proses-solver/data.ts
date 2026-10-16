@@ -1,7 +1,6 @@
 import type {
   ScenarioKey,
   ScenarioRunStatus,
-  SolverLogLine,
 } from "@/repository/simulation/dto";
 
 /** Jeda sebelum otomatis pindah ke halaman Hasil setelah solver selesai. */
@@ -16,18 +15,13 @@ export const SCENARIO_CODE_CLASS: Record<ScenarioKey, string> = {
   pv_diesel_battery: "text-brand",
 };
 
-export const SCENARIO_RUNNING_DESCRIPTION: Record<ScenarioKey, string> = {
-  diesel_only: "Diesel-only sedang menghitung biaya operasi genset saja.",
-  pv_diesel: "PV + diesel sedang mencari kapasitas PV dengan biaya terendah.",
-  pv_diesel_battery:
-    "PV + diesel + baterai sedang mencari kapasitas PV dan baterai dengan biaya terendah.",
-};
-
-export const SCENARIO_DONE_PREFIX: Record<ScenarioKey, string> = {
-  diesel_only: "Diesel-only selesai.",
-  pv_diesel: "PV + diesel selesai.",
-  pv_diesel_battery: "PV + diesel + baterai selesai.",
-};
+/*
+ * Backend menjalankan semua skenario dalam satu request, jadi progres per
+ * skenario hanya perkiraan dari waktu berjalan; status akhirnya baru
+ * diketahui saat respons tiba.
+ */
+export const RUNNING_DESCRIPTION =
+  "Backend membentuk profil beban & PV per jam, lalu Offgridders mengoptimasi semua skenario dalam satu proses. Progres di bawah adalah perkiraan.";
 
 type RunStatusMeta = {
   label: string;
@@ -51,6 +45,11 @@ export const RUN_STATUS_META: Record<ScenarioRunStatus, RunStatusMeta> = {
     textClass: "text-success",
     barClass: "[&>[data-slot=progress-indicator]]:bg-success",
   },
+  feasible: {
+    label: "Selesai · feasible",
+    textClass: "text-warning",
+    barClass: "[&>[data-slot=progress-indicator]]:bg-warning",
+  },
   infeasible: {
     label: "Gagal · infeasible",
     textClass: "text-danger",
@@ -71,11 +70,4 @@ export const RUN_STATUS_META: Record<ScenarioRunStatus, RunStatusMeta> = {
     textClass: "text-fg-secondary",
     barClass: "[&>[data-slot=progress-indicator]]:bg-fg-tertiary",
   },
-};
-
-export const LOG_LEVEL_CLASS: Record<SolverLogLine["level"], string> = {
-  command: "text-fg-tertiary",
-  info: "text-fg-primary",
-  success: "text-success",
-  error: "text-danger",
 };

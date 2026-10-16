@@ -35,3 +35,15 @@ export const formatDuration = (totalSeconds: number) => {
   const seconds = safe % 60;
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 };
+
+/** "15,7 %" (spasi sebelum %, sesuai gaya penulisan di Figma). */
+export const formatPercent = (value: number, fractionDigits = 1) =>
+  `${formatNumber(value, fractionDigits, fractionDigits)} %`;
+
+/** Label sumbu ringkas: 1.500 -> "1,5 rb", 2.300.000 -> "2,3 jt". */
+export const formatCompact = (value: number) => {
+  const abs = Math.abs(value);
+  if (abs >= 1e6) return `${formatNumber(value / 1e6, 1)} jt`;
+  if (abs >= 1e4) return `${formatNumber(value / 1e3, 0)} rb`;
+  return formatNumber(value);
+};

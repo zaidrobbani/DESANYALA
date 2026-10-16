@@ -1,7 +1,9 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useRef } from "react";
 import {
   type FieldErrors,
+  type FieldPath,
   get,
   useFieldArray,
   useForm,
@@ -9,8 +11,13 @@ import {
   useWatch,
 } from "react-hook-form";
 import { toast } from "sonner";
-import { getErrorMessage } from "@/lib/try-catch";
-import { useCreateSimulation } from "@/repository/simulation/query";
+import { ApiError, formatErrorLoc, getErrorMessage } from "@/lib/try-catch";
+import type { ValidationErrorItem } from "@/repository/simulation/dto";
+import {
+  useCreateSimulation,
+  useGetSimulationInput,
+  useValidateSimulationInput,
+} from "@/repository/simulation/query";
 import {
   type SimulationFormValues,
   simulationFormSchema,
@@ -28,6 +35,7 @@ import {
   type SimulationStepKey,
   SOURCE,
 } from "../data";
+import { fromSimulationRequest } from "../util/from-simulation-request";
 import {
   toDemandLoad,
   toSimulationRequest,
@@ -48,8 +56,20 @@ const toNumber = (raw: string | undefined) => {
   return Number.isFinite(value) ? value : 0;
 };
 
+/** Error 422 Pydantic dari backend, atau [] bila bukan error validasi. */
+const backendValidationErrors = (error: unknown): ValidationErrorItem[] =>
+  error instanceof ApiError &&
+  error.status === 422 &&
+  Array.isArray(error.details)
+    ? (error.details as ValidationErrorItem[])
+    : [];
+
 export const useInputSimulasiContainer = () => {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  /** Isi ulang form dari run sebelumnya: /simulasi?dari=<id>&fokus=<field>. */
+  const sourceRunId = searchParams.get("dari") ?? "";
+  const focusField = searchParams.get("fokus") ?? "";
 
   const form = useForm<SimulationFormValues>({
     resolver: zodResolver(simulationFormSchema),
@@ -64,6 +84,7 @@ export const useInputSimulasiContainer = () => {
     reset,
     trigger,
     clearErrors,
+    setError,
   } = form;
   const { errors, isSubmitted } = useFormState({ control });
 
@@ -75,6 +96,41 @@ export const useInputSimulasiContainer = () => {
   const pvEnabled = watchedValues.pv?.enabled ?? false;
   const batteryEnabled = watchedValues.battery?.enabled ?? false;
   const selectedScenarios = watchedValues.optimization?.scenarios ?? [];
+
+  /* --- Isi ulang dari run sebelumnya ---------------------------------- */
+  const sourceRun = useGetSimulationInput(sourceRunId);
+  const sourceRequest = sourceRun.data?.payload;
+  const prefilledRunId = useRef<string | null>(null);
+  const pendingFocus = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!sourceRequest || prefilledRunId.current === sourceRunId) return;
+    prefilledRunId.current = sourceRunId;
+    reset(fromSimulationRequest(sourceRequest));
+    pendingFocus.current = focusField || null;
+    toast.success("Input diisi dari run sebelumnya");
+  }, [sourceRequest, sourceRunId, focusField, reset]);
+
+  // Fokus dicoba tiap commit sampai field yang diminta ada di DOM (nilai
+  // reset baru ter-render setelah efek isi ulang di atas).
+  useEffect(() => {
+    const field = pendingFocus.current;
+    if (!field) return;
+    const element = document.getElementsByName(field)[0];
+    if (!(element instanceof HTMLElement)) return;
+    pendingFocus.current = null;
+    element.scrollIntoView({ block: "center" });
+    element.focus({ preventScroll: true });
+    if (element instanceof HTMLInputElement) element.select();
+  });
+
+  useEffect(() => {
+    if (sourceRun.error) {
+      toast.error("Input run sebelumnya tidak ditemukan", {
+        description: "Form memakai contoh awal.",
+      });
+    }
+  }, [sourceRun.error]);
 
   /* --- Daftar peralatan (card 02) ------------------------------------- */
   const loadsArray = useFieldArray({ control, name: "demand.loads" });
@@ -135,6 +191,8 @@ export const useInputSimulasiContainer = () => {
 
   const handleBatteryToggle = (enabled: boolean) => {
     if (!enabled) clearErrors("battery");
+    // Skenario PV + diesel + baterai butuh baterai aktif (superRefine schema).
+    if (isSubmitted) trigger("optimization.scenarios");
   };
 
   const handleScenarioToggle = (
@@ -192,10 +250,57 @@ export const useInputSimulasiContainer = () => {
   };
 
   /* --- Submit / reset -------------------------------------------------- */
+  const validateInput = useValidateSimulationInput();
   const createSimulation = useCreateSimulation();
 
-  const onValid = (values: SimulationFormValues) => {
-    createSimulation.mutate(toSimulationRequest(values), {
+  /**
+   * Tampilkan error 422 backend di field terkait. Error tingkat objek
+   * (mis. loc ["body", "pv"]) atau field yang tidak ada di form -> toast.
+   */
+  const applyBackendErrors = (items: ValidationErrorItem[]) => {
+    const values = form.getValues();
+    const unmatched: string[] = [];
+    let firstPath: string | null = null;
+    for (const item of items) {
+      const path = formatErrorLoc(item.loc);
+      if (path && get(values, path) !== undefined && path.includes(".")) {
+        setError(path as FieldPath<SimulationFormValues>, {
+          type: "backend",
+          message: `Backend: ${item.msg}`,
+        });
+        firstPath ??= path;
+      } else {
+        unmatched.push(path ? `${path}: ${item.msg}` : item.msg);
+      }
+    }
+    const step = SIMULATION_STEPS.find((candidate) =>
+      candidate.sections.some((section) =>
+        firstPath?.startsWith(`${section}.`),
+      ),
+    );
+    toast.error("Input ditolak validasi backend", {
+      description:
+        unmatched.join("; ") ||
+        (step ? `Periksa bagian "${step.title}".` : undefined),
+    });
+    if (step) scrollToStep(step.key);
+  };
+
+  const onValid = async (values: SimulationFormValues) => {
+    const payload = toSimulationRequest(values);
+    try {
+      // Validasi kontrak di backend dulu (cepat), baru jalankan solver.
+      await validateInput.mutateAsync(payload);
+    } catch (error) {
+      const items = backendValidationErrors(error);
+      if (items.length > 0) {
+        applyBackendErrors(items);
+      } else {
+        toast.error(getErrorMessage(error, "Gagal memvalidasi input"));
+      }
+      return;
+    }
+    createSimulation.mutate(payload, {
       onSuccess: (response) => {
         router.push(ROUTES.simulasiProses(response.payload.id));
       },
@@ -241,7 +346,7 @@ export const useInputSimulasiContainer = () => {
     // Aksi
     onSubmit: handleSubmit(onValid, onInvalid),
     handleReset,
-    isSubmitting: createSimulation.isPending,
+    isSubmitting: validateInput.isPending || createSimulation.isPending,
   };
 };
 

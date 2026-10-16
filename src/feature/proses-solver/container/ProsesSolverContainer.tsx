@@ -1,13 +1,12 @@
 "use client";
 
-import { IconAlertTriangle, IconArrowLeft } from "@tabler/icons-react";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import LoadErrorPanel from "@/shared/component/LoadErrorPanel";
 import PageHero from "@/shared/component/PageHero";
+import SolverLogPanel from "@/shared/component/SolverLogPanel";
 import ScenarioProgressPanel from "../component/ScenarioProgressPanel";
 import SolverBanner from "../component/SolverBanner";
 import SolverFooter from "../component/SolverFooter";
-import SolverLogPanel from "../component/SolverLogPanel";
 import { useProsesSolverContainer } from "../hooks/useProsesSolverContainer";
 
 export const ProsesSolverHero = () => (
@@ -33,6 +32,7 @@ const ProsesSolverContainer = () => {
     isLoading,
     loadError,
     retry,
+    canViewResult,
     isCancelling,
     handleCancel,
     handleBackToInput,
@@ -46,40 +46,12 @@ const ProsesSolverContainer = () => {
       {isLoading && <ProsesSolverSkeleton />}
 
       {loadError && !progress && (
-        <section
-          role="alert"
-          className="flex w-full flex-col items-start gap-3 rounded-md bg-surface px-4 py-3.5 sm:flex-row sm:items-center"
-        >
-          <IconAlertTriangle
-            aria-hidden
-            className="size-[18px] shrink-0 text-danger"
-            stroke={1.75}
-          />
-          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <h2 className="text-body-strong text-danger">
-              Progres solver tidak dapat dimuat
-            </h2>
-            <p className="text-fg-primary text-small">{loadError}</p>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => retry()}
-              className="h-10 rounded-md border-line-strong px-4 text-body-strong"
-            >
-              Coba lagi
-            </Button>
-            <Button
-              type="button"
-              onClick={handleBackToInput}
-              className="h-10 gap-2 rounded-md px-4 text-body-strong hover:bg-brand-hover"
-            >
-              <IconArrowLeft aria-hidden className="size-4" stroke={1.75} />
-              Ke input
-            </Button>
-          </div>
-        </section>
+        <LoadErrorPanel
+          title="Progres solver tidak dapat dimuat"
+          message={loadError}
+          onRetry={() => retry()}
+          onBack={handleBackToInput}
+        />
       )}
 
       {progress && (
@@ -89,6 +61,7 @@ const ProsesSolverContainer = () => {
           <SolverLogPanel logs={progress.logs} />
           <SolverFooter
             status={progress.status}
+            canViewResult={canViewResult}
             isCancelling={isCancelling}
             onCancel={handleCancel}
             onBackToInput={handleBackToInput}

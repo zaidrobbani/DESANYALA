@@ -8,6 +8,8 @@ const OUTLINE_CLASS =
 
 interface SolverFooterProps {
   status: SimulationStatus | null;
+  /** Hasil bisa dibuka (semua selesai, atau sebagian skenario optimal). */
+  canViewResult: boolean;
   isCancelling: boolean;
   onCancel: () => void;
   onBackToInput: () => void;
@@ -16,6 +18,7 @@ interface SolverFooterProps {
 
 const SolverFooter = ({
   status,
+  canViewResult,
   isCancelling,
   onCancel,
   onBackToInput,
@@ -53,7 +56,7 @@ const SolverFooter = ({
         </Button>
       )}
 
-      {status === "completed" ? (
+      {canViewResult ? (
         <Button
           type="button"
           onClick={onViewResult}
@@ -66,7 +69,7 @@ const SolverFooter = ({
         <p className="text-center text-fg-tertiary text-small">
           {status === "failed"
             ? "Periksa kapasitas dan batas di input, lalu jalankan ulang."
-            : "Biasanya selesai kurang dari 2 menit."}
+            : "Simulasi 365 hari bisa memakan beberapa menit."}
         </p>
       )}
     </div>

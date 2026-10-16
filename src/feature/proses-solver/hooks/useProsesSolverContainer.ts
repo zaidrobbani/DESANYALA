@@ -23,14 +23,27 @@ export const useProsesSolverContainer = () => {
 
   const cancelSimulation = useCancelSimulation();
 
-  // Halaman pindah otomatis ke Hasil saat semua skenario selesai.
+  const scenarios = progress?.scenarios ?? [];
+  // Respons backend sudah tiba (status skenario final), termasuk infeasible.
+  const hasResponse =
+    status !== "running" && scenarios.some((s) => s.progress === 1);
+  const hasUsableScenario = scenarios.some(
+    (s) => s.status === "optimal" || s.status === "feasible",
+  );
+  // Hasil bisa dibuka bila backend mengembalikan respons; kalau semua skenario
+  // gagal, halaman Hasil hanya menampilkan diagnosis.
+  const canViewResult = hasResponse;
+  const shouldRedirect =
+    status === "completed" || (status === "failed" && hasUsableScenario);
+
+  // Halaman pindah otomatis ke Hasil saat ada skenario yang bisa dipakai.
   useEffect(() => {
-    if (status !== "completed" || !simulationId) return;
+    if (!shouldRedirect || !simulationId) return;
     const timer = setTimeout(() => {
       router.replace(ROUTES.simulasiHasil(simulationId));
     }, REDIRECT_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [status, simulationId, router]);
+  }, [shouldRedirect, simulationId, router]);
 
   const handleCancel = () => {
     if (!simulationId) return;
@@ -45,7 +58,9 @@ export const useProsesSolverContainer = () => {
   };
 
   const handleBackToInput = () => {
-    router.push(ROUTES.simulasi);
+    router.push(
+      simulationId ? ROUTES.simulasiDari(simulationId) : ROUTES.simulasi,
+    );
   };
 
   const handleViewResult = () => {
@@ -61,6 +76,7 @@ export const useProsesSolverContainer = () => {
   return {
     simulationId,
     progress,
+    canViewResult,
     isLoading: progressQuery.isLoading && Boolean(simulationId),
     loadError,
     retry: () => progressQuery.refetch(),

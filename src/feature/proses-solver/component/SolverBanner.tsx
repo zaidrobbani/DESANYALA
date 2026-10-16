@@ -4,10 +4,10 @@ import {
   IconCircleX,
   IconLoader2,
 } from "@tabler/icons-react";
-import { cn } from "@/lib/utils";
 import type { SimulationProgress } from "@/repository/simulation/dto";
+import StatusBanner from "@/shared/component/StatusBanner";
 import { formatDuration, formatNumber } from "@/shared/util/number";
-import { SCENARIO_DONE_PREFIX, SCENARIO_RUNNING_DESCRIPTION } from "../data";
+import { RUNNING_DESCRIPTION } from "../data";
 
 type BannerContent = {
   icon: typeof IconLoader2;
@@ -17,13 +17,16 @@ type BannerContent = {
   description: string;
 };
 
+const countByStatus = (progress: SimulationProgress) => {
+  const usable = progress.scenarios.filter(
+    (s) => s.status === "optimal" || s.status === "feasible",
+  ).length;
+  return { usable, total: progress.total_scenarios };
+};
+
 const resolveContent = (progress: SimulationProgress): BannerContent => {
-  const {
-    status,
-    current_scenario_index: current,
-    total_scenarios: total,
-  } = progress;
-  const scenarioCount = `skenario ${current} dari ${total}`;
+  const { status } = progress;
+  const { usable, total } = countByStatus(progress);
 
   if (status === "completed") {
     return {
@@ -31,18 +34,25 @@ const resolveContent = (progress: SimulationProgress): BannerContent => {
       iconClass: "text-success",
       titleClass: "text-success",
       title: "Optimasi selesai",
-      description: "Semua skenario optimal. Mengalihkan ke halaman Hasil…",
+      description: `${usable} dari ${total} skenario punya solusi. Mengalihkan ke halaman Hasil…`,
     };
   }
 
   if (status === "failed") {
+    const message =
+      progress.error?.message ?? "Solver berhenti karena terjadi kesalahan.";
     return {
       icon: IconAlertTriangle,
       iconClass: "text-danger",
       titleClass: "text-danger",
-      title: `Optimasi gagal pada ${scenarioCount}`,
+      title:
+        usable > 0
+          ? `Sebagian skenario gagal (${usable} dari ${total} berhasil)`
+          : "Optimasi gagal",
       description:
-        progress.error?.message ?? "Solver berhenti karena terjadi kesalahan.",
+        usable > 0
+          ? `${message} Mengalihkan ke halaman Hasil untuk diagnosis…`
+          : message,
     };
   }
 
@@ -52,14 +62,10 @@ const resolveContent = (progress: SimulationProgress): BannerContent => {
       iconClass: "text-fg-secondary",
       titleClass: "text-fg-secondary",
       title: "Optimasi dibatalkan",
-      description: "Solver dihentikan. Ubah input lalu jalankan ulang.",
+      description:
+        "Request dihentikan dari browser. Ubah input lalu jalankan ulang.",
     };
   }
-
-  const running = progress.scenarios[current - 1];
-  const finished = progress.scenarios
-    .filter((scenario) => scenario.status === "optimal")
-    .map((scenario) => SCENARIO_DONE_PREFIX[scenario.key]);
 
   return {
     icon: IconLoader2,
@@ -68,13 +74,8 @@ const resolveContent = (progress: SimulationProgress): BannerContent => {
     title:
       status === "queued"
         ? "Menunggu antrean solver"
-        : `Sedang diproses: ${scenarioCount}`,
-    description: [
-      ...finished,
-      running ? SCENARIO_RUNNING_DESCRIPTION[running.key] : "",
-    ]
-      .filter(Boolean)
-      .join(" "),
+        : `Sedang diproses: ${total} skenario`,
+    description: RUNNING_DESCRIPTION,
   };
 };
 
@@ -82,36 +83,24 @@ interface SolverBannerProps {
   progress: SimulationProgress;
 }
 
-/**
- * Status solver: panel putih, ikon + judul berwarna, log apa adanya
- * (Code/Small). Tanpa latar tint dan garis aksen.
- */
 const SolverBanner = ({ progress }: SolverBannerProps) => {
   const content = resolveContent(progress);
   const { solver } = progress;
 
   return (
-    <section
-      aria-live="polite"
-      className="flex w-full items-start gap-3 rounded-md bg-surface px-4 py-3.5"
-    >
-      <content.icon
-        aria-hidden
-        className={cn("mt-0.5 size-[18px] shrink-0", content.iconClass)}
-        stroke={1.75}
-      />
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <h2 className={cn("text-body-strong", content.titleClass)}>
-          {content.title}
-        </h2>
-        <p className="text-fg-primary text-small">{content.description}</p>
-        <p className="font-mono text-code text-fg-tertiary">
-          {solver.name} {solver.version} · {solver.method} ·{" "}
-          {formatNumber(solver.periods)} periode ·{" "}
-          {formatDuration(progress.elapsed_seconds)}
-        </p>
-      </div>
-    </section>
+    <StatusBanner
+      icon={content.icon}
+      iconClassName={content.iconClass}
+      title={content.title}
+      titleClassName={content.titleClass}
+      description={content.description}
+      meta={
+        <>
+          {solver.name} · {solver.method} · {formatNumber(solver.periods)}{" "}
+          periode · {formatDuration(progress.elapsed_seconds)}
+        </>
+      }
+    />
   );
 };
 

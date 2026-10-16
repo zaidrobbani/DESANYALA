@@ -23,7 +23,11 @@ interface ApiErrorResponse {
   };
   error?: string | { error_code?: string; message?: string };
   message?: string;
-  detail?: string;
+  /** FastAPI: string, objek `{ status, message }`, atau list error Pydantic. */
+  detail?:
+    | string
+    | { status?: string; message?: string }
+    | { loc?: (string | number)[]; msg?: string }[];
 }
 
 export class ApiError extends Error {
@@ -43,7 +47,32 @@ export class ApiError extends Error {
   }
 }
 
+/** Label lokasi error Pydantic tanpa prefix "body", mis. "pv.capacity_max_kwp". */
+export const formatErrorLoc = (loc: (string | number)[] = []) =>
+  loc.filter((part, index) => !(index === 0 && part === "body")).join(".");
+
+const detailMessage = (detail: ApiErrorResponse["detail"]) => {
+  if (!detail) return undefined;
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    const lines = detail.map((item) => {
+      const where = formatErrorLoc(item.loc);
+      return where ? `${where}: ${item.msg}` : item.msg;
+    });
+    return lines.filter(Boolean).join("; ") || undefined;
+  }
+  return detail.message;
+};
+
+const detailCode = (detail: ApiErrorResponse["detail"]) => {
+  if (Array.isArray(detail)) return "VALIDATION_ERROR";
+  if (detail && typeof detail === "object") return detail.status;
+  return undefined;
+};
+
 const fallbackMessageByStatus = (status?: number) => {
+  if (status === 500)
+    return "Server backend mengalami kesalahan internal (500).";
   if (status === 502) return "Server backend tidak dapat dijangkau (502).";
   if (status === 503) return "Server backend sedang maintenance (503).";
   if (status === 504) return "Koneksi ke server backend timeout (504).";
@@ -64,7 +93,7 @@ export const extractApiError = (rawResData: unknown, status?: number) => {
     (typeof resData.error === "string" ? resData.error : undefined) ||
     resData.payload?.message ||
     resData.message ||
-    resData.detail ||
+    detailMessage(resData.detail) ||
     fallbackMessageByStatus(status);
 
   return {
@@ -72,8 +101,9 @@ export const extractApiError = (rawResData: unknown, status?: number) => {
     code:
       errPayload?.error_code ??
       errRoot?.error_code ??
+      detailCode(resData.detail) ??
       (status ? `HTTP_${status}` : undefined),
-    details: errPayload?.details,
+    details: errPayload?.details ?? resData.detail,
   };
 };
 
@@ -86,7 +116,20 @@ export async function tryCatch<T, E = ApiError>(
   } catch (error: unknown) {
     let parsedError: ApiError;
 
-    if (axios.isAxiosError<ApiErrorResponse>(error)) {
+    if (axios.isCancel(error)) {
+      parsedError = new ApiError("Permintaan dibatalkan.", {
+        code: "CANCELLED",
+      });
+    } else if (
+      axios.isAxiosError(error) &&
+      !error.response &&
+      error.code === "ECONNABORTED"
+    ) {
+      parsedError = new ApiError(
+        "Backend tidak merespons dalam batas waktu. Coba lagi atau kurangi periode simulasi.",
+        { code: "TIMEOUT" },
+      );
+    } else if (axios.isAxiosError<ApiErrorResponse>(error)) {
       const status = error.response?.status;
       const extracted = extractApiError(error.response?.data, status);
       parsedError = new ApiError(extracted.message || error.message, {

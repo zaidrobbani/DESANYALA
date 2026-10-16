@@ -1,14 +1,33 @@
 import { IconTerminal2 } from "@tabler/icons-react";
-import { useEffect, useRef } from "react";
+import type React from "react";
+import { useEffect, useId, useRef } from "react";
 import { cn } from "@/lib/utils";
 import type { SolverLogLine } from "@/repository/simulation/dto";
-import { LOG_LEVEL_CLASS } from "../data";
+
+const LOG_LEVEL_CLASS: Record<SolverLogLine["level"], string> = {
+  command: "text-fg-tertiary",
+  info: "text-fg-primary",
+  success: "text-success",
+  warning: "text-warning",
+  error: "text-danger",
+};
 
 interface SolverLogPanelProps {
   logs: SolverLogLine[];
+  title?: string;
+  /** Label di kanan judul, mis. <SourceBadge>. */
+  badge?: React.ReactNode;
+  className?: string;
 }
 
-const SolverLogPanel = ({ logs }: SolverLogPanelProps) => {
+/** Log solver apa adanya (Code/Small) di kotak bg-subtle. */
+const SolverLogPanel = ({
+  logs,
+  title = "Log solver",
+  badge,
+  className,
+}: SolverLogPanelProps) => {
+  const titleId = useId();
   const boxRef = useRef<HTMLDivElement>(null);
   const lineCount = logs.length;
 
@@ -21,18 +40,24 @@ const SolverLogPanel = ({ logs }: SolverLogPanelProps) => {
 
   return (
     <section
-      aria-labelledby="log-solver-title"
-      className="flex w-full flex-col gap-2.5 rounded-lg bg-surface px-4 py-5 sm:px-6"
+      aria-labelledby={titleId}
+      className={cn(
+        "flex w-full flex-col gap-2.5 rounded-lg bg-surface px-4 py-5 sm:px-6",
+        className,
+      )}
     >
-      <div className="flex items-center gap-2">
-        <IconTerminal2
-          aria-hidden
-          className="size-5 shrink-0 text-fg-secondary"
-          stroke={1.75}
-        />
-        <h2 id="log-solver-title" className="text-h3">
-          Log solver
-        </h2>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <IconTerminal2
+            aria-hidden
+            className="size-5 shrink-0 text-fg-secondary"
+            stroke={1.75}
+          />
+          <h2 id={titleId} className="text-h3">
+            {title}
+          </h2>
+        </div>
+        {badge}
       </div>
       <div
         ref={boxRef}

@@ -1,9 +1,14 @@
 export const ROUTES = {
   beranda: "/",
   simulasi: "/simulasi",
+  /** Input yang diisi ulang dari run `id`, opsional fokus ke satu field. */
+  simulasiDari: (id: string, field?: string) =>
+    `/simulasi?dari=${encodeURIComponent(id)}${field ? `&fokus=${encodeURIComponent(field)}` : ""}`,
   simulasiProses: (id: string) =>
     `/simulasi/proses?id=${encodeURIComponent(id)}`,
-  simulasiHasil: (id: string) => `/simulasi/hasil?id=${encodeURIComponent(id)}`,
+  /** Hasil run `id`, opsional langsung membuka tab skenario tertentu. */
+  simulasiHasil: (id: string, scenario?: string) =>
+    `/simulasi/hasil?id=${encodeURIComponent(id)}${scenario ? `&skenario=${encodeURIComponent(scenario)}` : ""}`,
   research: "/research",
 } as const;
 

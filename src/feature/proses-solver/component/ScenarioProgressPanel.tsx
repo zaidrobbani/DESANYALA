@@ -12,13 +12,14 @@ const statusDetail = (scenario: ScenarioProgress, elapsedSeconds: number) => {
     case "running":
       return formatDuration(elapsedSeconds);
     case "optimal":
+    case "feasible":
     case "infeasible":
     case "error":
       return scenario.duration_seconds !== null
         ? `${formatNumber(scenario.duration_seconds, 1)} detik`
         : "";
     case "skipped":
-      return "Skenario sebelumnya gagal";
+      return "Tidak ada di respons";
     default:
       return "";
   }

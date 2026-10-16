@@ -5,11 +5,14 @@ import type {
   SimulationDays,
   SimulationRequest,
 } from "@/repository/simulation/dto";
-import type {
-  DemandLoadFormValues,
-  SimulationFormValues,
+import {
+  batterySchema,
+  type DemandLoadFormValues,
+  pvSchema,
+  type SimulationFormValues,
 } from "@/schemas/simulation/simulation.schema";
 import { parseIdNumber } from "@/shared/util/number";
+import { SIMULATION_FORM_DEFAULTS } from "../data";
 
 export const SCHEMA_VERSION = "desanyala.input.v1";
 
@@ -65,20 +68,30 @@ export const toScenarios = (
   return scenarios;
 };
 
+/*
+ * Field PV/baterai yang nonaktif disembunyikan dan tidak divalidasi form,
+ * tetapi backend tetap memvalidasi seluruh objek `pv`/`battery`. Bila nilai
+ * tersembunyi tidak valid, kirim nilai contoh awal (tetap enabled=false).
+ */
+const sanitizePv = (pv: SimulationFormValues["pv"]) =>
+  pv.enabled || pvSchema.safeParse({ ...pv, enabled: true }).success
+    ? pv
+    : { ...SIMULATION_FORM_DEFAULTS.pv, enabled: false };
+
+const sanitizeBattery = (battery: SimulationFormValues["battery"]) =>
+  battery.enabled ||
+  batterySchema.safeParse({ ...battery, enabled: true }).success
+    ? battery
+    : { ...SIMULATION_FORM_DEFAULTS.battery, enabled: false };
+
 /** Ubah nilai form menjadi payload `desanyala.input.v1` (buildConfig()). */
 export const toSimulationRequest = (
   values: SimulationFormValues,
 ): SimulationRequest => {
-  const {
-    project,
-    demand,
-    pv,
-    generators,
-    battery,
-    economics,
-    reliability,
-    optimization,
-  } = values;
+  const { project, demand, generators, economics, reliability, optimization } =
+    values;
+  const pv = sanitizePv(values.pv);
+  const battery = sanitizeBattery(values.battery);
   const loads = demand.loads.map(toDemandLoad);
   const dailyEnergy = loads.reduce(
     (sum, load) => sum + load.estimated_kwh_day,
