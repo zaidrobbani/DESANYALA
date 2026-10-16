@@ -6,6 +6,7 @@
  *        (multipart bila ada file profil beban: field `payload` + `load_profile`)
  *   GET  /simulations/:id/progress  -> SimulationProgressResponse
  *   POST /simulations/:id/cancel    -> 204
+ *   GET  /simulations/:id/result    -> SimulationResultResponse
  */
 
 export type ScenarioKey = "baseline" | "hybrid";
@@ -140,4 +141,70 @@ export type SimulationCreateResponse = {
 
 export type SimulationProgressResponse = {
   payload: SimulationProgress;
+};
+
+/* ------------------------------------------------------------------------ */
+/* Hasil simulasi (409 NOT_READY bila solver belum selesai)                 */
+/* ------------------------------------------------------------------------ */
+
+export type HourlyDispatch = {
+  /** 0..23, jam ke- pada hari tipikal. */
+  hour: number;
+  load_kw: number;
+  diesel_kw: number;
+  pv_kw: number;
+  battery_discharge_kw: number;
+  /** Daya yang masuk ke baterai (positif). */
+  battery_charge_kw: number;
+};
+
+export type ScenarioResult = {
+  key: ScenarioKey;
+  label: string;
+  solve_seconds: number;
+  /** Net present cost selama umur proyek (Rp). */
+  npc_idr: number;
+  lcoe_idr_per_kwh: number;
+  /** Investasi baru di skenario ini (Rp). Diesel eksisting tidak dihitung. */
+  capex_idr: number;
+  opex_idr_per_year: number;
+  fuel_liters_per_year: number;
+  served_energy_kwh_per_year: number;
+  unserved_energy_pct: number;
+  /** Rata-rata daya per jam pada hari tipikal, 24 baris. */
+  typical_day_dispatch: HourlyDispatch[];
+};
+
+export type ComponentKey = "pv" | "battery" | "inverter" | "diesel";
+
+export type ComponentResult = {
+  key: ComponentKey;
+  /** Jumlah unit (genset bisa > 1, selain itu 1). */
+  units: number;
+  /** Kapasitas per unit. */
+  unit_capacity: number;
+  unit: "kWp" | "kWh" | "kW";
+  is_existing: boolean;
+  /** Estimasi biaya investasi (Rp), null untuk komponen eksisting. */
+  investment_idr: number | null;
+  /** Porsi kebutuhan energi tahunan yang dipasok (%), null bila tidak relevan. */
+  energy_share_pct: number | null;
+};
+
+export type SimulationResult = {
+  id: string;
+  /** Skenario dengan NPC terendah. */
+  recommended_scenario: ScenarioKey;
+  solver: SimulationProgress["solver"] & { model_status: string };
+  /** Selisih maksimum neraca energi di seluruh periode (kWh). */
+  energy_balance_max_error_kwh: number;
+  /** Konfigurasi optimal skenario hybrid. */
+  components: ComponentResult[];
+  scenarios: ScenarioResult[];
+  /** Input yang dipakai saat run (dikembalikan apa adanya). */
+  input: SimulationRequest;
+};
+
+export type SimulationResultResponse = {
+  payload: SimulationResult;
 };

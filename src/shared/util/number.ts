@@ -35,3 +35,26 @@ export const formatDuration = (totalSeconds: number) => {
   const seconds = safe % 60;
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 };
+
+/**
+ * Rupiah ringkas: miliar dengan desimal, juta dibulatkan.
+ * formatIdrCompact(11.9e9) -> { value: "11,9", unit: "miliar Rp" }
+ * formatIdrCompact(456e6)  -> { value: "456", unit: "juta Rp" }
+ */
+export const formatIdrCompact = (value: number, billionDigits = 1) => {
+  const abs = Math.abs(value);
+  if (abs >= 1e9) {
+    return {
+      value: formatNumber(value / 1e9, billionDigits, billionDigits),
+      unit: "miliar Rp",
+    };
+  }
+  if (abs >= 1e6) {
+    return { value: formatNumber(value / 1e6, 0), unit: "juta Rp" };
+  }
+  return { value: formatNumber(value, 0), unit: "Rp" };
+};
+
+/** "15,7 %" (spasi sebelum %, sesuai gaya penulisan di Figma). */
+export const formatPercent = (value: number, fractionDigits = 1) =>
+  `${formatNumber(value, fractionDigits, fractionDigits)} %`;

@@ -6,12 +6,14 @@ import type {
   SimulationCreateResponse,
   SimulationProgressResponse,
   SimulationRequest,
+  SimulationResultResponse,
 } from "./dto";
 import {
   mockCancelSimulation,
   mockCreateSimulation,
   mockGetLoadProfilePresets,
   mockGetSimulationProgress,
+  mockGetSimulationResult,
 } from "./mock";
 
 export const GetLoadProfilePresets =
@@ -85,4 +87,22 @@ export const CancelSimulation = async (id: string): Promise<void> => {
   if (error) {
     throw error;
   }
+};
+
+export const GetSimulationResult = async (
+  id: string,
+): Promise<SimulationResultResponse> => {
+  if (isMockApi()) return mockGetSimulationResult(id);
+
+  const { data, error } = await tryCatch(
+    axiosPublic.get<SimulationResultResponse>(
+      `/simulations/${encodeURIComponent(id)}/result`,
+    ),
+  );
+
+  if (error || !data?.data) {
+    throw error ?? new Error("Gagal memuat hasil simulasi");
+  }
+
+  return data.data;
 };
