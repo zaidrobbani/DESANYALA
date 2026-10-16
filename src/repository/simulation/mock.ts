@@ -8,11 +8,15 @@ import { ApiError } from "@/lib/try-catch";
 import { scaleLoadProfile } from "@/shared/util/load-profile";
 import { formatNumber } from "@/shared/util/number";
 import type {
+  ComponentResult,
+  HourlyDispatch,
   LoadProfilePreset,
   ScenarioKey,
   ScenarioProgress,
+  ScenarioResult,
   SimulationProgress,
   SimulationRequest,
+  SimulationResult,
   SolverLogLine,
 } from "./dto";
 
@@ -113,6 +117,8 @@ type MockRun = {
   /** Skenario yang dibuat gagal (infeasible), atau null. */
   failing_scenario: ScenarioKey | null;
   failure_reason: string | null;
+  /** Input saat run, dipakai untuk menyusun hasil. Kosong di sesi lama. */
+  request?: SimulationRequest;
 };
 
 const storage = () =>
@@ -180,6 +186,7 @@ export const mockCreateSimulation = async (request: SimulationRequest) => {
     scenarios: request.scenarios,
     failing_scenario: failure?.scenario ?? null,
     failure_reason: failure?.reason ?? null,
+    request,
   };
   writeRun(run);
   return { payload: { id: run.id, status: "running" as const } };
@@ -329,4 +336,225 @@ export const mockGetSimulationProgress = async (id: string) => {
     });
   }
   return { payload: buildMockProgress(run, Date.now()) };
+};
+
+/* ------------------------------------------------------------------------ */
+/* Hasil simulasi                                                           */
+/* ------------------------------------------------------------------------ */
+
+/*
+ * PLACEHOLDER — angka biaya mengikuti mockup Figma (benchmark Subekti dkk.
+ * 2024, kurs 16.300 Rp/USD), bukan output model. Kapasitas & biaya
+ * investasi komponen dihitung dari harga satuan di input.
+ */
+const MOCK_COST: Record<
+  ScenarioKey,
+  Pick<
+    ScenarioResult,
+    "npc_idr" | "lcoe_idr_per_kwh" | "capex_idr" | "opex_idr_per_year"
+  >
+> = {
+  baseline: {
+    npc_idr: 14_180_000_000,
+    lcoe_idr_per_kwh: 4564,
+    capex_idr: 0,
+    opex_idr_per_year: 1_210_000_000,
+  },
+  hybrid: {
+    npc_idr: 11_900_000_000,
+    lcoe_idr_per_kwh: 3847,
+    capex_idr: 1_980_000_000,
+    opex_idr_per_year: 855_000_000,
+  },
+};
+
+const MOCK_HYBRID_SIZE = { pv_kwp: 70.1, battery_kwh: 80, inverter_kw: 30 };
+/** Porsi energi tahunan yang dipasok skenario hybrid (%). */
+const MOCK_HYBRID_SHARE = { pv: 29.6, diesel: 70.4 };
+
+/*
+ * Dispatch hari tipikal skenario hybrid, dibaca dari grafik Figma
+ * (node 41:709): [diesel, PV, baterai discharge, baterai charge] kW.
+ * Diskalakan per jam ke profil beban run.
+ */
+const MOCK_HYBRID_DISPATCH: [number, number, number, number][] = [
+  [14, 0, 0, 0],
+  [12, 0, 0, 0],
+  [11, 0, 0, 0],
+  [11, 0, 0, 0],
+  [12, 0, 0, 0],
+  [16, 0, 0, 0],
+  [24, 2, 0, 0],
+  [34, 8, 0, 0],
+  [36, 20, 0, 0],
+  [28, 32, 0, 0],
+  [0, 41, 9, 0],
+  [0, 38, 0, 8],
+  [0, 26, 0, 22],
+  [0, 20, 0, 24],
+  [0, 18, 0, 19],
+  [0, 18, 0, 9],
+  [0, 15, 3, 0],
+  [18, 5, 0, 0],
+  [32, 0, 10, 0],
+  [47.9, 0, 30, 0],
+  [35, 0, 25, 0],
+  [37, 0, 1, 0],
+  [24, 0, 0, 0],
+  [16, 0, 0, 0],
+];
+
+const round1 = (value: number) => Math.round(value * 10) / 10;
+
+const resolveLoadProfile = (request: SimulationRequest) => {
+  if (request.load.source === "manual") {
+    const { daily_energy_kwh, peak_load_kw } = request.load;
+    return {
+      dailyEnergy: daily_energy_kwh,
+      profile: scaleLoadProfile(YENSAWAI_SHAPE, daily_energy_kwh, peak_load_kw),
+    };
+  }
+  const presetId = request.load.preset_id;
+  const preset =
+    MOCK_LOAD_PROFILE_PRESETS.find((item) => item.id === presetId) ??
+    MOCK_LOAD_PROFILE_PRESETS[0];
+  return {
+    dailyEnergy: preset.daily_energy_kwh,
+    profile: preset.hourly_profile_kw,
+  };
+};
+
+const buildDispatch = (key: ScenarioKey, profile: number[]): HourlyDispatch[] =>
+  profile.map((load, hour) => {
+    if (key === "baseline") {
+      return {
+        hour,
+        load_kw: load,
+        diesel_kw: load,
+        pv_kw: 0,
+        battery_discharge_kw: 0,
+        battery_charge_kw: 0,
+      };
+    }
+    const [diesel, pv, discharge, charge] = MOCK_HYBRID_DISPATCH[hour];
+    const served = diesel + pv + discharge;
+    const factor = served > 0 ? load / served : 0;
+    return {
+      hour,
+      load_kw: load,
+      diesel_kw: round1(diesel * factor),
+      pv_kw: round1(pv * factor),
+      battery_discharge_kw: round1(discharge * factor),
+      battery_charge_kw: round1(charge * factor),
+    };
+  });
+
+const buildMockResult = (
+  run: MockRun,
+  request: SimulationRequest,
+): SimulationResult => {
+  const { dailyEnergy, profile } = resolveLoadProfile(request);
+  const servedPerYear = dailyEnergy * 365;
+  const sfc = request.diesel.specific_consumption_l_per_kwh;
+
+  const scenarios = run.scenarios.map(
+    (key): ScenarioResult => ({
+      key,
+      label: SCENARIO_LABEL[key],
+      solve_seconds: SCENARIO_DURATION[key],
+      ...MOCK_COST[key],
+      fuel_liters_per_year:
+        servedPerYear *
+        sfc *
+        (key === "hybrid" ? MOCK_HYBRID_SHARE.diesel / 100 : 1),
+      served_energy_kwh_per_year: servedPerYear,
+      unserved_energy_pct: 0,
+      typical_day_dispatch: buildDispatch(key, profile),
+    }),
+  );
+
+  const pvKwp = Math.min(MOCK_HYBRID_SIZE.pv_kwp, request.pv.max_capacity_kwp);
+  const batteryKwh = Math.min(
+    MOCK_HYBRID_SIZE.battery_kwh,
+    request.battery.max_capacity_kwh,
+  );
+  const { economics } = request;
+  const components: ComponentResult[] = [
+    {
+      key: "pv",
+      units: 1,
+      unit_capacity: pvKwp,
+      unit: "kWp",
+      is_existing: false,
+      investment_idr: pvKwp * economics.capex_pv_idr_per_kwp,
+      energy_share_pct: MOCK_HYBRID_SHARE.pv,
+    },
+    {
+      key: "battery",
+      units: 1,
+      unit_capacity: batteryKwh,
+      unit: "kWh",
+      is_existing: false,
+      investment_idr: batteryKwh * economics.capex_battery_idr_per_kwh,
+      energy_share_pct: null,
+    },
+    {
+      key: "inverter",
+      units: 1,
+      unit_capacity: MOCK_HYBRID_SIZE.inverter_kw,
+      unit: "kW",
+      is_existing: false,
+      investment_idr:
+        MOCK_HYBRID_SIZE.inverter_kw * economics.capex_inverter_idr_per_kw,
+      energy_share_pct: null,
+    },
+    {
+      key: "diesel",
+      units: request.diesel.units,
+      unit_capacity: request.diesel.unit_capacity_kw,
+      unit: "kW",
+      is_existing: true,
+      investment_idr: null,
+      energy_share_pct: MOCK_HYBRID_SHARE.diesel,
+    },
+  ];
+
+  const cheapest = [...scenarios].sort((a, b) => a.npc_idr - b.npc_idr)[0];
+
+  return {
+    id: run.id,
+    recommended_scenario: cheapest?.key ?? "baseline",
+    solver: { ...SOLVER, model_status: "Optimal" },
+    energy_balance_max_error_kwh: 0,
+    components,
+    scenarios,
+    input: request,
+  };
+};
+
+export const mockGetSimulationResult = async (id: string) => {
+  await delay(350);
+  const run = readRun(id);
+  if (!run) {
+    throw new ApiError("Simulasi tidak ditemukan atau sesi sudah berakhir.", {
+      code: "NOT_FOUND",
+      status: 404,
+    });
+  }
+  const { status } = buildMockProgress(run, Date.now());
+  if (status !== "completed") {
+    throw new ApiError(
+      status === "running" || status === "queued"
+        ? "Solver belum selesai. Tunggu hingga semua skenario optimal."
+        : "Simulasi ini tidak selesai, jadi belum ada hasil.",
+      { code: "NOT_READY", status: 409 },
+    );
+  }
+  if (!run.request) {
+    throw new ApiError(
+      "Data input run ini tidak tersimpan. Jalankan ulang optimasi.",
+      { code: "NOT_FOUND", status: 404 },
+    );
+  }
+  return { payload: buildMockResult(run, run.request) };
 };

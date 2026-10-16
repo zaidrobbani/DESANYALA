@@ -10,13 +10,13 @@ Desain: [Figma DESANYALA](https://www.figma.com/design/fSuDUVYlm7vOzb3jd3AdWP/DE
 | --- | --- | --- | --- |
 | Input simulasi (contoh & input manual) | `/simulasi` | 01, 01b | Selesai |
 | Proses solver (berjalan, selesai, gagal) | `/simulasi/proses?id=` | 03, 03b | Selesai |
-| Hasil simulasi | `/simulasi/hasil?id=` | 02, 02b–d, 04 | Placeholder (di luar scope) |
+| Hasil simulasi | `/simulasi/hasil?id=` | 02 | Selesai (tab Komponen & Parameter sementara, menunggu frame 02b–d) |
 
 `/` sementara di-redirect ke `/simulasi` karena halaman Beranda belum di-slice.
 
 ### Mencoba alur demo (mock API)
 
-1. Buka `/simulasi`, lalu klik **Jalankan optimasi** dengan nilai default. Kedua skenario selesai *optimal* dalam ±14 detik, lalu halaman pindah otomatis ke Hasil.
+1. Buka `/simulasi`, lalu klik **Jalankan optimasi** dengan nilai default. Kedua skenario selesai *optimal* dalam ±14 detik, lalu halaman pindah otomatis ke Hasil. Tombol **Unduh hasil CSV** mengekspor ringkasan dan dispatch hari tipikal.
 2. **Skenario gagal (frame 03b):** ubah *Kapasitas terpasang* diesel menjadi `2 × 30` (60 kW < beban puncak 77,90 kW) lalu jalankan. Baseline akan *infeasible* dan Hybrid dilewati. Cara lain: set `NEXT_PUBLIC_MOCK_SOLVER_RESULT=fail`.
 3. Tombol **Batalkan** menghentikan solver yang sedang berjalan.
 
@@ -131,6 +131,7 @@ GET  /load-profiles/presets
 POST /simulations                (multipart bila ada file profil beban)
 GET  /simulations/:id/progress   (di-poll tiap 1 detik)
 POST /simulations/:id/cancel
+GET  /simulations/:id/result     (409 NOT_READY bila solver belum selesai)
 ```
 
-Respons dibungkus `{ payload: ... }`. Selama `NEXT_PUBLIC_BASE_API_URL` kosong, semua call dijawab oleh `src/repository/simulation/mock.ts`. State run disimpan di `sessionStorage` sehingga halaman proses tetap jalan setelah refresh. Data preset **El Espino** di mock masih **placeholder**, bukan data asli Balderrama dkk. (2019).
+Respons dibungkus `{ payload: ... }`. Selama `NEXT_PUBLIC_BASE_API_URL` kosong, semua call dijawab oleh `src/repository/simulation/mock.ts`. State run disimpan di `sessionStorage` sehingga halaman proses tetap jalan setelah refresh. Data preset **El Espino** di mock masih **placeholder**, bukan data asli Balderrama dkk. (2019). Angka biaya (NPC, LCOE, OPEX, CAPEX) di hasil mock mengikuti mockup Figma (benchmark Subekti dkk. 2024), bukan output model. Kapasitas, biaya investasi komponen, konsumsi solar, dan dispatch dihitung dari input.

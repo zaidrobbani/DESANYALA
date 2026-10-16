@@ -4,8 +4,8 @@ import {
   IconCircleX,
   IconLoader2,
 } from "@tabler/icons-react";
-import { cn } from "@/lib/utils";
 import type { SimulationProgress } from "@/repository/simulation/dto";
+import StatusBanner from "@/shared/component/StatusBanner";
 import { formatDuration, formatNumber } from "@/shared/util/number";
 import { SCENARIO_DONE_PREFIX, SCENARIO_RUNNING_DESCRIPTION } from "../data";
 
@@ -82,36 +82,25 @@ interface SolverBannerProps {
   progress: SimulationProgress;
 }
 
-/**
- * Status solver: panel putih, ikon + judul berwarna, log apa adanya
- * (Code/Small). Tanpa latar tint dan garis aksen.
- */
 const SolverBanner = ({ progress }: SolverBannerProps) => {
   const content = resolveContent(progress);
   const { solver } = progress;
 
   return (
-    <section
-      aria-live="polite"
-      className="flex w-full items-start gap-3 rounded-md bg-surface px-4 py-3.5"
-    >
-      <content.icon
-        aria-hidden
-        className={cn("mt-0.5 size-[18px] shrink-0", content.iconClass)}
-        stroke={1.75}
-      />
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <h2 className={cn("text-body-strong", content.titleClass)}>
-          {content.title}
-        </h2>
-        <p className="text-fg-primary text-small">{content.description}</p>
-        <p className="font-mono text-code text-fg-tertiary">
+    <StatusBanner
+      icon={content.icon}
+      iconClassName={content.iconClass}
+      title={content.title}
+      titleClassName={content.titleClass}
+      description={content.description}
+      meta={
+        <>
           {solver.name} {solver.version} · {solver.method} ·{" "}
           {formatNumber(solver.periods)} periode ·{" "}
           {formatDuration(progress.elapsed_seconds)}
-        </p>
-      </div>
-    </section>
+        </>
+      }
+    />
   );
 };
 

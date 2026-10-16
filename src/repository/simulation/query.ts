@@ -4,12 +4,14 @@ import {
   CreateSimulation,
   GetLoadProfilePresets,
   GetSimulationProgress,
+  GetSimulationResult,
 } from "./action";
 import type {
   LoadProfilePresetListResponse,
   SimulationCreateResponse,
   SimulationProgressResponse,
   SimulationRequest,
+  SimulationResultResponse,
   SimulationStatus,
 } from "./dto";
 
@@ -17,6 +19,7 @@ export const simulationKeys = {
   all: ["simulations"] as const,
   presets: () => ["load-profile-presets"] as const,
   progress: (id: string) => ["simulations", id, "progress"] as const,
+  result: (id: string) => ["simulations", id, "result"] as const,
 };
 
 const POLLING_STATUSES: SimulationStatus[] = ["queued", "running"];
@@ -66,5 +69,16 @@ export const useCancelSimulation = () => {
     onSuccess: (_, id) => {
       queryClient.invalidateQueries({ queryKey: simulationKeys.progress(id) });
     },
+  });
+};
+
+export const useGetSimulationResult = (id: string) => {
+  return useQuery<SimulationResultResponse, Error>({
+    queryKey: simulationKeys.result(id),
+    queryFn: () => GetSimulationResult(id),
+    enabled: !!id,
+    // Hasil run tidak berubah setelah solver selesai.
+    staleTime: Number.POSITIVE_INFINITY,
+    retry: 1,
   });
 };

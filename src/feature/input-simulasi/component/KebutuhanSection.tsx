@@ -4,7 +4,7 @@ import type { FieldErrors, UseFormRegister } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import type { LoadProfilePreset } from "@/repository/simulation/dto";
 import {
@@ -13,6 +13,10 @@ import {
 } from "@/schemas/simulation/simulation.schema";
 import NumberField, { type FieldSource } from "@/shared/component/NumberField";
 import SectionCard from "@/shared/component/SectionCard";
+import {
+  SegmentedTabsList,
+  SegmentedTabsTrigger,
+} from "@/shared/component/SegmentedTabs";
 import SourceBadge from "@/shared/component/SourceBadge";
 import { formatNumber } from "@/shared/util/number";
 import {
@@ -25,9 +29,6 @@ import {
 import LoadProfileChart from "./LoadProfileChart";
 
 const STEP = SIMULATION_STEPS[1];
-
-const TRIGGER_CLASS =
-  "h-auto flex-none rounded-md px-3.5 py-1.5 text-body-strong text-fg-secondary shadow-none hover:text-fg-primary data-[state=active]:bg-surface data-[state=active]:text-brand data-[state=active]:shadow-none data-active:bg-surface data-active:text-brand data-active:shadow-none";
 
 /* ------------------------------------------------------------------------ */
 
@@ -246,17 +247,14 @@ const KebutuhanSection = ({
         title={STEP.sectionTitle}
         description={STEP.sectionDescription}
         action={
-          <TabsList
-            aria-label="Sumber data kebutuhan energi"
-            className="h-auto gap-0.5 rounded-lg bg-subtle p-[3px]"
-          >
-            <TabsTrigger value="contoh" className={TRIGGER_CLASS}>
+          <SegmentedTabsList aria-label="Sumber data kebutuhan energi">
+            <SegmentedTabsTrigger value="contoh">
               Gunakan contoh
-            </TabsTrigger>
-            <TabsTrigger value="manual" className={TRIGGER_CLASS}>
+            </SegmentedTabsTrigger>
+            <SegmentedTabsTrigger value="manual">
               Input manual
-            </TabsTrigger>
-          </TabsList>
+            </SegmentedTabsTrigger>
+          </SegmentedTabsList>
         }
       >
         <div className="flex flex-col gap-5">

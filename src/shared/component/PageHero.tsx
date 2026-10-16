@@ -7,6 +7,8 @@ interface PageHeroProps {
   title: string;
   description: React.ReactNode;
   meta?: React.ReactNode;
+  /** Konten di sisi kanan hero (mis. panel rekomendasi). */
+  aside?: React.ReactNode;
   credit?: string;
   size?: "lg" | "md";
   className?: string;
@@ -17,6 +19,7 @@ const PageHero = ({
   title,
   description,
   meta,
+  aside,
   credit = "Foto: Simon Spring / Unsplash",
   size = "lg",
   className,
@@ -41,11 +44,16 @@ const PageHero = ({
         <div className="absolute inset-0 bg-scrim" />
       </div>
 
-      <div className="flex max-w-[640px] flex-col gap-2.5 text-fg-inverse">
-        <p className="text-small opacity-88">{eyebrow}</p>
-        <h1 className="text-h1">{title}</h1>
-        <p className="text-body opacity-88">{description}</p>
-        {meta && <p className="text-small opacity-88">{meta}</p>}
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex min-w-0 flex-col gap-2.5 text-fg-inverse">
+          <p className="text-small opacity-88">{eyebrow}</p>
+          <h1 className="text-h1">{title}</h1>
+          <p className="max-w-[640px] text-body opacity-88">{description}</p>
+          {meta && (
+            <p className="max-w-[640px] text-small opacity-88">{meta}</p>
+          )}
+        </div>
+        {aside}
       </div>
 
       {credit && (

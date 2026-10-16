@@ -7,6 +7,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
+import { niceAxis } from "@/shared/util/chart";
 import { toHourlyChartData } from "@/shared/util/load-profile";
 import { formatNumber } from "@/shared/util/number";
 
@@ -15,20 +16,6 @@ const chartConfig = {
 } satisfies ChartConfig;
 
 const X_TICKS = [0, 3, 6, 9, 12, 15, 18, 21];
-
-/** Batas atas sumbu Y yang "bulat" + 4 interval yang rapi. */
-const niceAxis = (max: number) => {
-  const raw = Math.max(max, 1) / 4;
-  const magnitude = 10 ** Math.floor(Math.log10(raw));
-  const step =
-    [1, 2, 2.5, 5, 10].map((m) => m * magnitude).find((s) => s >= raw) ?? raw;
-  const top = Math.ceil(max / step) * step || step;
-  const ticks = Array.from(
-    { length: Math.round(top / step) + 1 },
-    (_, i) => i * step,
-  );
-  return { top, ticks };
-};
 
 interface LoadProfileChartProps {
   title: string;
