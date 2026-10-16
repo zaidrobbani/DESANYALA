@@ -1,6 +1,4 @@
 import { IconShieldCheck, IconTarget } from "@tabler/icons-react";
-import { Checkbox } from "@/components/ui/checkbox";
-import { cn } from "@/lib/utils";
 import type { ScenarioKey } from "@/repository/simulation/dto";
 import SectionCard from "@/shared/component/SectionCard";
 import SubPanel from "@/shared/component/SubPanel";
@@ -17,22 +15,25 @@ import FormSelectField from "./FormSelectField";
 
 const STEP = SIMULATION_STEPS[6];
 
+const SCENARIO_SELECT_OPTIONS = SCENARIO_OPTIONS.map((option) => ({
+  label: option.label,
+  value: option.id,
+}));
+
 type OptimizationSectionProps = SectionFieldProps & {
   shortagePolicy: "forbid" | "bounded";
-  selectedScenarios: readonly ScenarioKey[];
-  batteryEnabled: boolean;
-  onScenarioToggle: (id: ScenarioKey, checked: boolean) => void;
+  selectedScenario: ScenarioKey;
 };
 
 const OptimizationSection = ({
   control,
   shortagePolicy,
-  selectedScenarios,
-  batteryEnabled,
-  onScenarioToggle,
+  selectedScenario,
   ...fieldProps
 }: OptimizationSectionProps) => {
-  const scenarioError = fieldProps.errors.optimization?.scenarios?.message;
+  const scenarioDescription = SCENARIO_OPTIONS.find(
+    (option) => option.id === selectedScenario,
+  )?.description;
 
   return (
     <SectionCard
@@ -83,49 +84,17 @@ const OptimizationSection = ({
             Tujuan selain biaya perlu fungsi objektif yang sesuai di backend.
           </p>
 
-          <fieldset className="flex flex-col gap-2">
-            <legend className="mb-1.5 text-fg-primary text-label">
-              Skenario yang dibandingkan
-            </legend>
-            {SCENARIO_OPTIONS.map((option) => {
-              const checked = selectedScenarios.includes(option.id);
-              return (
-                <label
-                  key={option.id}
-                  htmlFor={option.htmlId}
-                  className={cn(
-                    "flex cursor-pointer items-start gap-2.5 rounded-md bg-surface px-3 py-2.5 transition-colors",
-                    checked
-                      ? "border-[1.5px] border-brand"
-                      : "border border-line hover:border-line-strong",
-                  )}
-                >
-                  <Checkbox
-                    id={option.htmlId}
-                    checked={checked}
-                    onCheckedChange={(value) =>
-                      onScenarioToggle(option.id, value === true)
-                    }
-                    className="mt-0.5 size-[18px] rounded-sm border-line-strong"
-                  />
-                  <span className="flex min-w-0 flex-col gap-0.5">
-                    <span className="text-body-strong">
-                      {option.label}
-                      {option.id === "pv_diesel_battery" && !batteryEnabled
-                        ? " (tanpa baterai)"
-                        : ""}
-                    </span>
-                    <span className="text-fg-tertiary text-small">
-                      {option.description}
-                    </span>
-                  </span>
-                </label>
-              );
-            })}
-            {scenarioError && (
-              <p className="text-danger text-small">{scenarioError}</p>
-            )}
-          </fieldset>
+          <FormSelectField
+            control={control}
+            name="optimization.scenario"
+            id="scenario"
+            label="Skenario"
+            options={SCENARIO_SELECT_OPTIONS}
+            className="flex-none"
+          />
+          {scenarioDescription && (
+            <p className="text-fg-tertiary text-small">{scenarioDescription}</p>
+          )}
         </SubPanel>
       </div>
 

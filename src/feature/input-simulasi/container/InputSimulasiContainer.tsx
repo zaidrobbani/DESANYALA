@@ -49,7 +49,6 @@ const InputSimulasiContainer = () => {
     handleRemoveLoad,
     handlePvToggle,
     handleBatteryToggle,
-    handleScenarioToggle,
     summary,
     steps,
     scrollToStep,
@@ -110,11 +109,9 @@ const InputSimulasiContainer = () => {
             watchedValues.reliability?.shortage_policy ??
             reliability.shortage_policy
           }
-          selectedScenarios={
-            watchedValues.optimization?.scenarios ?? optimization.scenarios
+          selectedScenario={
+            watchedValues.optimization?.scenario ?? optimization.scenario
           }
-          batteryEnabled={summary.batteryEnabled}
-          onScenarioToggle={handleScenarioToggle}
         />
         <ConfigSummaryPanel
           summary={summary}

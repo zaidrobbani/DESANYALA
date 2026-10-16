@@ -49,6 +49,8 @@ export const useHasilSimulasiContainer = () => {
         : null;
   const selected = scenarios.find((s) => s.scenario_id === selectedKey) ?? null;
   const isSelectedUsable = selected ? isUsableScenario(selected) : false;
+  /** Form input kini menjalankan satu skenario per run. */
+  const isSingleScenario = scenarios.length <= 1;
   const usableScenarios = scenarios.filter(isUsableScenario);
   const cheapest = response ? lowestLcoeScenario(response) : null;
   /** Pembanding saat skenario terpilih gagal. */
@@ -140,6 +142,7 @@ export const useHasilSimulasiContainer = () => {
     selected,
     selectedKey,
     isSelectedUsable,
+    isSingleScenario,
     cheapest,
     alternative,
     isLoading: resultQuery.isLoading && Boolean(simulationId),

@@ -20,11 +20,12 @@ import ScenarioTabs from "../component/ScenarioTabs";
 import ValidasiSection from "../component/ValidasiSection";
 import { SCENARIO_META } from "../data";
 import { useHasilSimulasiContainer } from "../hooks/useHasilSimulasiContainer";
+import { isUsableScenario } from "../util/result-view";
 
 const LAYOUT = "grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_400px]";
 
 const DEFAULT_DESCRIPTION =
-  "Bandingkan kapasitas pembangkit, biaya energi, konsumsi diesel, dan operasi baterai.";
+  "Kapasitas pembangkit, biaya energi, konsumsi diesel, dan operasi baterai dari hasil optimasi.";
 
 interface HasilSimulasiHeroProps {
   title?: string;
@@ -70,6 +71,7 @@ const HasilSimulasiContainer = () => {
     selected,
     selectedKey,
     isSelectedUsable,
+    isSingleScenario,
     cheapest,
     alternative,
     isLoading,
@@ -92,24 +94,36 @@ const HasilSimulasiContainer = () => {
   let hero: React.ReactNode = <HasilSimulasiHero />;
   if (response && project) {
     const where = [project.name, project.location].filter(Boolean).join(", ");
+    // Satu skenario: tampilkan skenario itu; beberapa: yang LCOE-nya terendah.
+    const featured = isSingleScenario ? selected : cheapest;
+    const featuredLcoe =
+      featured && isUsableScenario(featured) ? featured.metrics.lcoe : null;
     hero = (
       <HasilSimulasiHero
         title={`Hasil optimasi sistem energi${where ? ` untuk ${where}` : ""}`}
         description={`${DEFAULT_DESCRIPTION} Periode ${formatNumber(response.period_days)} hari, ${formatNumber(response.time_step_hours)} jam per interval.`}
         aside={
           <HeroResultPanel
-            label={cheapest ? "LCOE terendah" : "Status solver"}
+            label={
+              isSingleScenario
+                ? "Skenario"
+                : cheapest
+                  ? "LCOE terendah"
+                  : "Status solver"
+            }
             title={
-              cheapest
-                ? SCENARIO_META[cheapest.scenario_id].label
+              featured
+                ? SCENARIO_META[featured.scenario_id].label
                 : "Tidak ada skenario dengan solusi"
             }
             note={
-              cheapest?.metrics.lcoe != null
-                ? `${formatNumber(cheapest.metrics.lcoe, cheapest.metrics.lcoe < 10 ? 5 : 2)} ${response.units.lcoe}`
-                : `Status ${response.status}`
+              featuredLcoe !== null
+                ? `LCOE ${formatNumber(featuredLcoe, featuredLcoe < 10 ? 5 : 2)} ${response.units.lcoe}`
+                : `Status ${featured?.status ?? response.status}`
             }
-            noteClassName={cheapest ? "text-success" : "text-danger"}
+            noteClassName={
+              featuredLcoe !== null ? "text-success" : "text-danger"
+            }
             onDownloadCsv={handleDownloadSummaryCsv}
           />
         }
@@ -136,11 +150,13 @@ const HasilSimulasiContainer = () => {
         <>
           <ResultStatusBanner response={response} />
 
-          <ScenarioTabs
-            response={response}
-            value={selectedKey}
-            onChange={handleSelectScenario}
-          />
+          {!isSingleScenario && (
+            <ScenarioTabs
+              response={response}
+              value={selectedKey}
+              onChange={handleSelectScenario}
+            />
+          )}
 
           {isSelectedUsable ? (
             <>
@@ -153,11 +169,13 @@ const HasilSimulasiContainer = () => {
                     periodDays={response.period_days}
                     stepHours={response.time_step_hours}
                   />
-                  <PerbandinganSection
-                    response={response}
-                    selected={selectedKey}
-                    onSelect={handleSelectScenario}
-                  />
+                  {!isSingleScenario && (
+                    <PerbandinganSection
+                      response={response}
+                      selected={selectedKey}
+                      onSelect={handleSelectScenario}
+                    />
+                  )}
                   <RingkasanEnergiSection
                     metrics={selected.metrics}
                     periodDays={response.period_days}

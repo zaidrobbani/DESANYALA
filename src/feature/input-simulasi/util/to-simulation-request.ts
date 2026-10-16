@@ -46,27 +46,15 @@ export const toDemandLoad = (load: DemandLoadFormValues): DemandLoad => {
   };
 };
 
-/** Sama dengan getScenarios() di HTML: urutan tetap, battery ikut toggle. */
-export const toScenarios = (
-  selected: readonly ScenarioKey[],
+/** Skenario terpilih -> item `optimization.scenarios[]` (battery ikut toggle). */
+export const toScenario = (
+  id: ScenarioKey,
   batteryEnabled: boolean,
-): OptimizationScenario[] => {
-  const scenarios: OptimizationScenario[] = [];
-  if (selected.includes("diesel_only")) {
-    scenarios.push({ id: "diesel_only", pv: false, battery: false });
-  }
-  if (selected.includes("pv_diesel")) {
-    scenarios.push({ id: "pv_diesel", pv: true, battery: false });
-  }
-  if (selected.includes("pv_diesel_battery")) {
-    scenarios.push({
-      id: "pv_diesel_battery",
-      pv: true,
-      battery: batteryEnabled,
-    });
-  }
-  return scenarios;
-};
+): OptimizationScenario => ({
+  id,
+  pv: id !== "diesel_only",
+  battery: id === "pv_diesel_battery" && batteryEnabled,
+});
 
 /*
  * Field PV/baterai yang nonaktif disembunyikan dan tidak divalidasi form,
@@ -180,7 +168,7 @@ export const toSimulationRequest = (
     },
     optimization: {
       objective: optimization.objective,
-      scenarios: toScenarios(optimization.scenarios, battery.enabled),
+      scenarios: [toScenario(optimization.scenario, battery.enabled)],
       solver_configuration: "backend_default",
     },
     notes: NOTES,

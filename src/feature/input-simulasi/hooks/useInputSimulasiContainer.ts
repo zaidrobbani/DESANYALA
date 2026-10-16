@@ -80,7 +80,6 @@ export const useInputSimulasiContainer = () => {
     control,
     register,
     handleSubmit,
-    setValue,
     reset,
     trigger,
     clearErrors,
@@ -95,7 +94,7 @@ export const useInputSimulasiContainer = () => {
   const currency = watchedValues.project?.currency ?? "IDR";
   const pvEnabled = watchedValues.pv?.enabled ?? false;
   const batteryEnabled = watchedValues.battery?.enabled ?? false;
-  const selectedScenarios = watchedValues.optimization?.scenarios ?? [];
+  const selectedScenario = watchedValues.optimization?.scenario;
 
   /* --- Isi ulang dari run sebelumnya ---------------------------------- */
   const sourceRun = useGetSimulationInput(sourceRunId);
@@ -186,29 +185,13 @@ export const useInputSimulasiContainer = () => {
   const handlePvToggle = (enabled: boolean) => {
     if (!enabled) clearErrors("pv");
     // Error skenario PV bergantung pada toggle ini (superRefine schema).
-    if (isSubmitted) trigger("optimization.scenarios");
+    if (isSubmitted) trigger("optimization.scenario");
   };
 
   const handleBatteryToggle = (enabled: boolean) => {
     if (!enabled) clearErrors("battery");
     // Skenario PV + diesel + baterai butuh baterai aktif (superRefine schema).
-    if (isSubmitted) trigger("optimization.scenarios");
-  };
-
-  const handleScenarioToggle = (
-    id: SimulationFormValues["optimization"]["scenarios"][number],
-    checked: boolean,
-  ) => {
-    const current = form.getValues("optimization.scenarios");
-    const next = checked
-      ? SCENARIO_OPTIONS.map((option) => option.id).filter(
-          (key) => key === id || current.includes(key),
-        )
-      : current.filter((key) => key !== id);
-    setValue("optimization.scenarios", next, {
-      shouldDirty: true,
-      shouldValidate: true,
-    });
+    if (isSubmitted) trigger("optimization.scenario");
   };
 
   /* --- Ringkasan sidebar ----------------------------------------------- */
@@ -219,15 +202,9 @@ export const useInputSimulasiContainer = () => {
       toNumber(watchedValues.generators?.rated_power_each_kw),
     pvEnabled,
     batteryEnabled,
-    scenarios: SCENARIO_OPTIONS.filter((option) =>
-      selectedScenarios.includes(option.id),
-    ).map((option) => ({
-      id: option.id,
-      label:
-        option.id === "pv_diesel_battery" && !batteryEnabled
-          ? `${option.label} (tanpa baterai)`
-          : option.label,
-    })),
+    scenarioLabel:
+      SCENARIO_OPTIONS.find((option) => option.id === selectedScenario)
+        ?.label ?? null,
   };
 
   /* --- Stepper --------------------------------------------------------- */
@@ -338,7 +315,6 @@ export const useInputSimulasiContainer = () => {
     // Card 03, 05 & 07
     handlePvToggle,
     handleBatteryToggle,
-    handleScenarioToggle,
     // Sidebar
     summary,
     steps,

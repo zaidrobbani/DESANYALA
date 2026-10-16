@@ -124,7 +124,7 @@ export const SIMULATION_FORM_DEFAULTS: SimulationFormValues = {
   },
   optimization: {
     objective: "annualized_cost",
-    scenarios: ["diesel_only", "pv_diesel", "pv_diesel_battery"],
+    scenario: "pv_diesel_battery",
   },
 };
 
@@ -229,7 +229,7 @@ export const SIMULATION_STEPS: SimulationStep[] = [
     description: "Target layanan, skenario",
     sectionTitle: "7. Keandalan & optimasi",
     sectionDescription:
-      "Tingkat layanan minimum dan skenario yang dibandingkan oleh engine.",
+      "Tingkat layanan minimum dan skenario yang dijalankan engine.",
     icon: IconAdjustmentsHorizontal,
   },
 ];
@@ -285,29 +285,26 @@ export const OBJECTIVE_OPTIONS: SelectOption[] = [
   { label: "Konsumsi diesel minimum", value: "fuel_consumption" },
 ];
 
+/** Satu skenario per run (dropdown #scenario). */
 export const SCENARIO_OPTIONS: {
   id: ScenarioKey;
-  htmlId: string;
   label: string;
   description: string;
 }[] = [
   {
     id: "diesel_only",
-    htmlId: "scenarioDiesel",
     label: "Diesel-only",
-    description: "Baseline tanpa panel surya dan baterai.",
+    description: "Hanya genset diesel, tanpa panel surya dan baterai.",
   },
   {
     id: "pv_diesel",
-    htmlId: "scenarioPv",
     label: "PV + diesel",
-    description: "Ukur kontribusi panel surya.",
+    description: "Panel surya dengan genset diesel sebagai cadangan.",
   },
   {
     id: "pv_diesel_battery",
-    htmlId: "scenarioBattery",
     label: "PV + diesel + baterai",
-    description: "Ukur manfaat penyimpanan energi.",
+    description: "Panel surya, baterai penyimpan energi, dan genset diesel.",
   },
 ];
 

@@ -414,9 +414,8 @@ export const reliabilitySchema = z
 export const optimizationSchema = z
   .object({
     objective: z.enum(["annualized_cost", "fuel_consumption"]),
-    scenarios: z
-      .array(z.enum(SCENARIO_IDS))
-      .min(1, "Pilih minimal satu skenario"),
+    /** Satu skenario per run; dikirim sebagai `optimization.scenarios[0]`. */
+    scenario: z.enum(SCENARIO_IDS),
   })
   .superRefine((data, ctx) => {
     if (data.objective === "fuel_consumption") {
@@ -438,22 +437,18 @@ export const simulationFormSchema = z
     optimization: optimizationSchema,
   })
   .superRefine((data, ctx) => {
-    const { scenarios } = data.optimization;
-    const needsPv = scenarios.some((id) => id !== "diesel_only");
-    if (needsPv && !data.pv.enabled) {
+    const { scenario } = data.optimization;
+    if (scenario !== "diesel_only" && !data.pv.enabled) {
       ctx.addIssue({
         code: "custom",
-        path: ["optimization", "scenarios"],
+        path: ["optimization", "scenario"],
         message: "Skenario dengan PV butuh panel surya yang aktif (card 03)",
       });
-    } else if (
-      scenarios.includes("pv_diesel_battery") &&
-      !data.battery.enabled
-    ) {
+    } else if (scenario === "pv_diesel_battery" && !data.battery.enabled) {
       // Backend menolak pv_diesel_battery bila battery.enabled = false.
       ctx.addIssue({
         code: "custom",
-        path: ["optimization", "scenarios"],
+        path: ["optimization", "scenario"],
         message:
           "Skenario PV + diesel + baterai butuh baterai yang aktif (card 05)",
       });

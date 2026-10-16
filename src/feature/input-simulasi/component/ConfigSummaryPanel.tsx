@@ -99,28 +99,24 @@ const ConfigSummaryPanel = ({
 
       <div className="flex flex-col gap-1.5 pt-1">
         <p className="text-fg-primary text-label">Skenario terpilih</p>
-        {summary.scenarios.length > 0 ? (
-          <ul id={`${idPrefix}scenarioSummary`} className="flex flex-col gap-1">
-            {summary.scenarios.map((scenario) => (
-              <li
-                key={scenario.id}
-                className="flex items-center gap-2 text-body text-fg-primary"
-              >
-                <IconCheck
-                  aria-hidden
-                  className="size-4 shrink-0 text-success"
-                  stroke={1.75}
-                />
-                {scenario.label}
-              </li>
-            ))}
-          </ul>
+        {summary.scenarioLabel ? (
+          <p
+            id={`${idPrefix}scenarioSummary`}
+            className="flex items-center gap-2 text-body text-fg-primary"
+          >
+            <IconCheck
+              aria-hidden
+              className="size-4 shrink-0 text-success"
+              stroke={1.75}
+            />
+            {summary.scenarioLabel}
+          </p>
         ) : (
           <p
             id={`${idPrefix}scenarioSummary`}
             className="text-danger text-small"
           >
-            Pilih minimal satu skenario.
+            Pilih satu skenario.
           </p>
         )}
       </div>

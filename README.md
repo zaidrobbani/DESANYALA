@@ -17,8 +17,8 @@ Desain: [Figma DESANYALA](https://www.figma.com/design/fSuDUVYlm7vOzb3jd3AdWP/DE
 
 ### Mencoba alur demo (mock API)
 
-1. Buka `/simulasi`, isi **Nama proyek** dan **Lokasi administratif** (wajib), lalu klik **Jalankan optimasi**. Ketiga skenario selesai dalam ±10 detik, lalu halaman pindah otomatis ke Hasil.
-2. **Skenario gagal:** ubah *Jumlah unit genset* menjadi `1` dan *Kapasitas per unit* menjadi `1` (1 kW < daya terpasang 2,65 kW) lalu jalankan. Diesel-only akan *infeasible*; tab-nya menampilkan diagnosis, pesan backend, dan tombol **Ubah di input** yang membuka form terisi nilai run tersebut (`/simulasi?dari=<id>&fokus=<field>`). Cara lain: `NEXT_PUBLIC_MOCK_SOLVER_RESULT=fail` / `fail-partial` / `error`.
+1. Buka `/simulasi`, isi **Nama proyek** dan **Lokasi administratif** (wajib), pilih **satu skenario** (Diesel-only, PV + diesel, atau PV + diesel + baterai) di card 7, lalu klik **Jalankan optimasi**. Skenario selesai dalam beberapa detik, lalu halaman pindah otomatis ke Hasil.
+2. **Skenario gagal:** pilih skenario *Diesel-only*, ubah *Jumlah unit genset* menjadi `1` dan *Kapasitas per unit* menjadi `1` (1 kW < daya terpasang 2,65 kW) lalu jalankan. Diesel-only akan *infeasible*; halaman hasil menampilkan diagnosis, pesan solver, dan tombol **Ubah di input** yang membuka form terisi nilai run tersebut (`/simulasi?dari=<id>&fokus=<field>`). Cara lain: `NEXT_PUBLIC_MOCK_SOLVER_RESULT=fail` / `fail-partial` / `error`.
 3. Tombol **Batalkan** menghentikan request yang sedang berjalan.
 
 ## Tech stack

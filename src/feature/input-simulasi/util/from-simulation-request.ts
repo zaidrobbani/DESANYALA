@@ -107,7 +107,8 @@ export const fromSimulationRequest = (
     },
     optimization: {
       objective: optimization.objective,
-      scenarios: optimization.scenarios.map(({ id }) => id),
+      // Form memilih satu skenario per run; run lama bisa berisi beberapa.
+      scenario: optimization.scenarios[0]?.id ?? "pv_diesel_battery",
     },
   };
 };

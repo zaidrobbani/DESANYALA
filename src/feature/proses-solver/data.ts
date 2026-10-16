@@ -21,7 +21,7 @@ export const SCENARIO_CODE_CLASS: Record<ScenarioKey, string> = {
  * diketahui saat respons tiba.
  */
 export const RUNNING_DESCRIPTION =
-  "Profil beban & PV per jam dibentuk, lalu semua skenario dioptimasi dalam satu proses. Progres di bawah adalah perkiraan.";
+  "Profil beban & PV per jam dibentuk, lalu skenario dioptimasi. Progres di bawah adalah perkiraan.";
 
 type RunStatusMeta = {
   label: string;
